@@ -32,13 +32,17 @@ class StopAlarmReceiver : BroadcastReceiver() {
                     val prefs = context.getSharedPreferences("navigation_prefs", Context.MODE_PRIVATE)
                     
                     // Check if this was a destination arrival alarm
-                    if (notificationId == GeofenceBroadcastReceiver.ARRIVAL_ALARM_ID) {
+                    if (notificationId == 2001) { // GeofenceBroadcastReceiver.ARRIVAL_ALARM_ID
                         // Clear navigation mode when alarm is stopped
                         with(prefs.edit()) {
                             putBoolean("navigation_active", false)
+                            // Clear destination data when navigation ends
+                            remove("destination_lat")
+                            remove("destination_lng")
+                            remove("navigation_start_time")
                             apply()
                         }
-                        Log.d(TAG, "Navigation mode cleared after alarm stop")
+                        Log.d(TAG, "Navigation mode and destination data cleared after alarm stop")
                     }
 
                     // Open the app

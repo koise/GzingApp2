@@ -81,6 +81,7 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     private var currentMarker: Marker? = null
     private var currentPolyline: Polyline? = null
     private var geofenceCircle: Circle? = null
+    private var proximityCircle: Circle? = null
     private var locationPermissionGranted = false
     private var currentLocation: LatLng? = null
     private var pinnedLocation: LatLng? = null
@@ -614,6 +615,7 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                     // Remove visual feedback
                     navigationStatusAnimation?.cancel()
                     geofenceCircle?.remove()
+                    proximityCircle?.remove()
 
                     Toast.makeText(
                         this@DashboardActivity,
@@ -636,6 +638,7 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
 
                     navigationStatusAnimation?.cancel()
                     geofenceCircle?.remove()
+                    proximityCircle?.remove()
 
                     Toast.makeText(
                         this@DashboardActivity,
@@ -808,7 +811,7 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
             navigationInstructions.visibility = View.VISIBLE
             tvNavigationStatus.text = getString(R.string.navigation_active)
             tvNavigationStatus.setTextColor(ContextCompat.getColor(this, R.color.navigation_active))
-            btnToggleNavigation.text = getString(R.string.stop_navigation)
+            btnToggleNavigation.text = "Cancel Navigation"
             btnToggleNavigation.setBackgroundColor(
                 ContextCompat.getColor(
                     this,
@@ -838,7 +841,7 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
 
     private fun updateNavigationButton() {
         if (isNavigating) {
-            tvNavigationText.text = getString(R.string.stop_navigation)
+            tvNavigationText.text = "Cancel Navigation"
             tvNavigationText.setTextColor(ContextCompat.getColor(this, R.color.navigation_error))
             ivNavigationIcon.setImageResource(R.drawable.ic_stop)
             ivNavigationIcon.setColorFilter(ContextCompat.getColor(this, R.color.navigation_error))
@@ -1266,8 +1269,11 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     }
 
     private fun addGeofenceVisualization(latLng: LatLng, radiusInMeters: Float) {
+        // Remove existing circles
         geofenceCircle?.remove()
+        proximityCircle?.remove()
 
+        // Add arrival geofence circle (smaller, solid)
         geofenceCircle = mMap.addCircle(
             CircleOptions()
                 .center(latLng)
@@ -1276,6 +1282,22 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                 .strokeWidth(3f)
                 .fillColor(Color.argb(50, 139, 69, 19))
         )
+
+        // Add proximity notification circle (300m, dashed appearance)
+        if (isNavigating) {
+            proximityCircle = mMap.addCircle(
+                CircleOptions()
+                    .center(latLng)
+                    .radius(300.0) // 300 meters for proximity notification
+                    .strokeColor(Color.argb(180, 255, 165, 0)) // Orange color
+                    .strokeWidth(2f)
+                    .fillColor(Color.argb(20, 255, 165, 0)) // Very light orange fill
+                    .strokePattern(listOf(
+                        com.google.android.gms.maps.model.Dash(20f),
+                        com.google.android.gms.maps.model.Gap(10f)
+                    ))
+            )
+        }
     }
 
     private fun updateLocationUI() {
@@ -1340,6 +1362,7 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         currentMarker?.remove()
         currentPolyline?.remove()
         geofenceCircle?.remove()
+        proximityCircle?.remove()
 
         // Add new marker
         currentMarker = mMap.addMarker(

@@ -23,9 +23,11 @@ class GeofenceHelper(private val context: Context) {
     companion object {
         private const val TAG = "GeofenceHelper"
         private const val GEOFENCE_ID = "pinned_location_geofence"
+        private const val PROXIMITY_GEOFENCE_ID = "proximity_notification_geofence"
 
         // Configurable radius - static for now, can be made dynamic later
         var GEOFENCE_RADIUS = 100.0f // radius in meters (changeable)
+        const val PROXIMITY_RADIUS = 300.0f // 300-meter proximity notification radius
 
         private const val GEOFENCE_EXPIRATION = Geofence.NEVER_EXPIRE
         private const val GEOFENCE_DWELL_TIME = 5000 // time in milliseconds
@@ -76,6 +78,20 @@ class GeofenceHelper(private val context: Context) {
     }
 
     /**
+     * Create a geofencing request with multiple geofences (proximity + arrival)
+     */
+    private fun createDualGeofencingRequest(arrivalGeofence: Geofence, proximityGeofence: Geofence): GeofencingRequest {
+        return GeofencingRequest.Builder()
+            .setInitialTrigger(
+                GeofencingRequest.INITIAL_TRIGGER_ENTER
+                        or GeofencingRequest.INITIAL_TRIGGER_DWELL
+            )
+            .addGeofence(arrivalGeofence)
+            .addGeofence(proximityGeofence)
+            .build()
+    }
+
+    /**
      * Create a geofence at the specified location with current radius setting
      */
     private fun createGeofence(latLng: LatLng): Geofence {
@@ -92,6 +108,28 @@ class GeofenceHelper(private val context: Context) {
             .setTransitionTypes(
                 Geofence.GEOFENCE_TRANSITION_ENTER
                         or Geofence.GEOFENCE_TRANSITION_DWELL
+                        or Geofence.GEOFENCE_TRANSITION_EXIT
+            )
+            .setLoiteringDelay(GEOFENCE_DWELL_TIME)
+            .build()
+    }
+
+    /**
+     * Create a proximity notification geofence at 300 meters
+     */
+    private fun createProximityGeofence(latLng: LatLng): Geofence {
+        Log.d(TAG, "Creating proximity geofence with radius: ${PROXIMITY_RADIUS}m at ${latLng.latitude}, ${latLng.longitude}")
+
+        return Geofence.Builder()
+            .setRequestId(PROXIMITY_GEOFENCE_ID)
+            .setCircularRegion(
+                latLng.latitude,
+                latLng.longitude,
+                PROXIMITY_RADIUS
+            )
+            .setExpirationDuration(GEOFENCE_EXPIRATION)
+            .setTransitionTypes(
+                Geofence.GEOFENCE_TRANSITION_ENTER
                         or Geofence.GEOFENCE_TRANSITION_EXIT
             )
             .setLoiteringDelay(GEOFENCE_DWELL_TIME)
@@ -165,7 +203,7 @@ class GeofenceHelper(private val context: Context) {
     }
 
     /**
-     * Internal method to add new geofence after cleanup - FIXED VERSION
+     * Internal method to add new geofence after cleanup - ENHANCED WITH DUAL GEOFENCING
      */
     private fun addNewGeofenceInternal(
         latLng: LatLng,
@@ -174,21 +212,22 @@ class GeofenceHelper(private val context: Context) {
         attemptCount: Int
     ) {
         try {
-            // Create new geofence with current radius setting
-            val geofence = createGeofence(latLng)
-            val geofencingRequest = createGeofencingRequest(geofence)
+            // Create both arrival geofence and proximity notification geofence
+            val arrivalGeofence = createGeofence(latLng)
+            val proximityGeofence = createProximityGeofence(latLng)
+            val geofencingRequest = createDualGeofencingRequest(arrivalGeofence, proximityGeofence)
 
-            Log.d(TAG, "Attempting to add geofence (attempt ${attemptCount + 1})...")
+            Log.d(TAG, "Attempting to add dual geofences (attempt ${attemptCount + 1}): arrival=${GEOFENCE_RADIUS}m, proximity=${PROXIMITY_RADIUS}m")
 
             geofencingClient.addGeofences(geofencingRequest, getGeofencePendingIntent())
                 .addOnSuccessListener {
-                    Log.d(TAG, "Geofence added successfully with ${GEOFENCE_RADIUS}m radius")
+                    Log.d(TAG, "Dual geofences added successfully: arrival=${GEOFENCE_RADIUS}m, proximity=${PROXIMITY_RADIUS}m")
                     currentGeofenceLocation = latLng
                     isActiveGeofence = true
                     onSuccess()
                 }
                 .addOnFailureListener { e ->
-                    Log.e(TAG, "Failed to add geofence (attempt ${attemptCount + 1})", e)
+                    Log.e(TAG, "Failed to add dual geofences (attempt ${attemptCount + 1})", e)
 
                     // Check if we should retry
                     if (attemptCount < MAX_RETRY_ATTEMPTS - 1 && shouldRetry(e)) {
@@ -211,7 +250,7 @@ class GeofenceHelper(private val context: Context) {
                                 Exception("Geofence service is not available. Please try again later.", e)
                             }
                             else -> {
-                                Exception("Failed to create geofence after ${attemptCount + 1} attempts: ${e.message}", e)
+                                Exception("Failed to create geofences after ${attemptCount + 1} attempts: ${e.message}", e)
                             }
                         }
 
