@@ -18,9 +18,14 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         private const val KEY_NAVIGATION_ACTIVE = "navigation_active"
 
         // Notification IDs for different types
-        private const val ARRIVAL_ALARM_ID = 2001
+        const val ARRIVAL_ALARM_ID = 2001
         private const val DWELL_NOTIFICATION_ID = 2002
         private const val EXIT_NOTIFICATION_ID = 2003
+        private const val PROXIMITY_NOTIFICATION_ID = 2004
+        
+        // Geofence IDs
+        private const val GEOFENCE_ID = "pinned_location_geofence"
+        private const val PROXIMITY_GEOFENCE_ID = "proximity_notification_geofence"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -61,8 +66,12 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 val isNavigationActive = isNavigationModeActive(context)
                 Log.d(TAG, "Navigation mode active: $isNavigationActive")
 
-                // Handle notifications based on navigation mode and transition type
-                handleGeofenceTransition(context, geofenceTransition, isNavigationActive)
+                // Check which geofence was triggered
+                val triggeredGeofenceIds = triggeringGeofences.map { it.requestId }
+                Log.d(TAG, "Triggered geofence IDs: $triggeredGeofenceIds")
+
+                // Handle notifications based on navigation mode, transition type, and geofence type
+                handleGeofenceTransition(context, geofenceTransition, isNavigationActive, triggeredGeofenceIds)
             }
         } else {
             // Log the error
@@ -71,76 +80,97 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     }
 
     /**
-     * Handle geofence transitions with appropriate notifications based on navigation mode
+     * Handle geofence transitions with appropriate notifications based on navigation mode and geofence type
      */
-    private fun handleGeofenceTransition(context: Context, geofenceTransition: Int, isNavigationActive: Boolean) {
+    private fun handleGeofenceTransition(context: Context, geofenceTransition: Int, isNavigationActive: Boolean, triggeredGeofenceIds: List<String>) {
         val notificationService = NotificationService(context)
 
         when (geofenceTransition) {
             Geofence.GEOFENCE_TRANSITION_ENTER -> {
-                if (isNavigationActive) {
-                    // Navigation mode: Show ALARM for arrival
-                    Log.d(TAG, "Navigation active - showing arrival ALARM")
-                    notificationService.showAlarmNotification(
-                        "🚨 DESTINATION REACHED!",
-                        "You have arrived at your destination! Tap STOP ALARM to end navigation.",
-                        ARRIVAL_ALARM_ID
-                    )
-                    
-                    // Ensure the alarm is loud and persistent
-                    notificationService.playAlarmSound()
-                    notificationService.triggerAlarmVibration()
-                } else {
-                    // Passive mode: Show regular notification
-                    Log.d(TAG, "Passive mode - showing arrival notification")
-                    notificationService.showNotification(
-                        "📍 You've Arrived!",
-                        "You have reached your pinned location",
-                        ARRIVAL_ALARM_ID
-                    )
+                // Check if it's the proximity geofence (300m) or arrival geofence (100m)
+                when {
+                    triggeredGeofenceIds.contains(PROXIMITY_GEOFENCE_ID) && isNavigationActive -> {
+                        // 300-meter proximity notification during navigation
+                        Log.d(TAG, "Navigation active - showing 300m proximity notification")
+                        notificationService.showNotification(
+                            "📍 Approaching Destination",
+                            "You are within 300 meters of your destination. Get ready to arrive!",
+                            PROXIMITY_NOTIFICATION_ID
+                        )
+                    }
+                    triggeredGeofenceIds.contains(GEOFENCE_ID) && isNavigationActive -> {
+                        // Arrival alarm for final destination
+                        Log.d(TAG, "Navigation active - showing arrival ALARM")
+                        notificationService.showAlarmNotification(
+                            "🚨 DESTINATION REACHED!",
+                            "You have arrived at your destination! Tap STOP ALARM to end navigation.",
+                            ARRIVAL_ALARM_ID
+                        )
+                    }
+                    triggeredGeofenceIds.contains(GEOFENCE_ID) && !isNavigationActive -> {
+                        // Passive mode: Show regular notification for arrival
+                        Log.d(TAG, "Passive mode - showing arrival notification")
+                        notificationService.showNotification(
+                            "📍 You've Arrived!",
+                            "You have reached your pinned location",
+                            ARRIVAL_ALARM_ID
+                        )
+                    }
+                    triggeredGeofenceIds.contains(PROXIMITY_GEOFENCE_ID) && !isNavigationActive -> {
+                        // Passive mode: Show proximity notification
+                        Log.d(TAG, "Passive mode - showing proximity notification")
+                        notificationService.showNotification(
+                            "📍 Near Location",
+                            "You are approaching your pinned location",
+                            PROXIMITY_NOTIFICATION_ID
+                        )
+                    }
                 }
             }
 
             Geofence.GEOFENCE_TRANSITION_DWELL -> {
-                if (isNavigationActive) {
-                    // Navigation mode: Show notification that user is staying at destination
-                    Log.d(TAG, "Navigation active - showing dwell notification")
-                    notificationService.showNotification(
-                        "🏁 At Destination",
-                        "You are now at your destination location",
-                        DWELL_NOTIFICATION_ID
-                    )
-                } else {
-                    // Passive mode: Show regular dwell notification
-                    Log.d(TAG, "Passive mode - showing dwell notification")
-                    notificationService.showNotification(
-                        "📍 At Location",
-                        "You are currently at your pinned location",
-                        DWELL_NOTIFICATION_ID
-                    )
+                // Only handle dwell for the arrival geofence (not proximity)
+                if (triggeredGeofenceIds.contains(GEOFENCE_ID)) {
+                    if (isNavigationActive) {
+                        // Navigation mode: Show notification that user is staying at destination
+                        Log.d(TAG, "Navigation active - showing dwell notification")
+                        notificationService.showNotification(
+                            "🏁 At Destination",
+                            "You are now at your destination location",
+                            DWELL_NOTIFICATION_ID
+                        )
+                    } else {
+                        // Passive mode: Show regular dwell notification
+                        Log.d(TAG, "Passive mode - showing dwell notification")
+                        notificationService.showNotification(
+                            "📍 At Location",
+                            "You are currently at your pinned location",
+                            DWELL_NOTIFICATION_ID
+                        )
+                    }
                 }
             }
 
             Geofence.GEOFENCE_TRANSITION_EXIT -> {
-                if (isNavigationActive) {
-                    // Navigation mode: Show notification that user left destination
-                    Log.d(TAG, "Navigation active - showing exit notification")
-                    notificationService.showNotification(
-                        "🚶 Left Destination",
-                        "You have left your destination area",
-                        EXIT_NOTIFICATION_ID
-                    )
-
-                    // Optional: Turn off navigation mode when user leaves
-                    // setNavigationMode(context, false)
-                } else {
-                    // Passive mode: Show regular exit notification
-                    Log.d(TAG, "Passive mode - showing exit notification")
-                    notificationService.showNotification(
-                        "📍 Left Location",
-                        "You have left your pinned location area",
-                        EXIT_NOTIFICATION_ID
-                    )
+                when {
+                    triggeredGeofenceIds.contains(GEOFENCE_ID) && isNavigationActive -> {
+                        // Navigation mode: Show notification that user left destination
+                        Log.d(TAG, "Navigation active - showing exit notification")
+                        notificationService.showNotification(
+                            "🚶 Left Destination",
+                            "You have left your destination area",
+                            EXIT_NOTIFICATION_ID
+                        )
+                    }
+                    triggeredGeofenceIds.contains(GEOFENCE_ID) && !isNavigationActive -> {
+                        // Passive mode: Show regular exit notification
+                        Log.d(TAG, "Passive mode - showing exit notification")
+                        notificationService.showNotification(
+                            "📍 Left Location",
+                            "You have left your pinned location area",
+                            EXIT_NOTIFICATION_ID
+                        )
+                    }
                 }
             }
         }
