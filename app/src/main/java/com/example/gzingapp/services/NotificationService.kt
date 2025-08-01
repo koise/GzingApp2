@@ -279,7 +279,7 @@ class NotificationService(private val context: Context) {
         }
     }
 
-    private fun playAlarmSound() {
+    fun playAlarmSound() {
         try {
             // Stop any existing sound using static method
             stopAlarmSound()
@@ -334,7 +334,7 @@ class NotificationService(private val context: Context) {
         }
     }
 
-    private fun triggerAlarmVibration() {
+    fun triggerAlarmVibration() {
         val alarmPattern = longArrayOf(0, 1000, 500, 1000, 500, 1000, 500, 1000)
 
         // Use static reference so it can be stopped from receiver

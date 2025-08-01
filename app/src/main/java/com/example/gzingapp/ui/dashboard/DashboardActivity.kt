@@ -1138,7 +1138,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
 
             Log.d(TAG, "Alarm stopped handling completed, alarm ID: $stoppedAlarmId")
         }
-        }
     }
 
     private fun setupLocationCard() {
@@ -1461,6 +1460,8 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         startActivity(intent)
         finish()
     }
+
+
 
     override fun onResume() {
         super.onResume()
