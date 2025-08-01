@@ -24,8 +24,8 @@ class GeofenceHelper(private val context: Context) {
         private const val TAG = "GeofenceHelper"
         private const val GEOFENCE_ID = "pinned_location_geofence"
 
-        // Configurable radius - static for now, can be made dynamic later
-        var GEOFENCE_RADIUS = 100.0f // radius in meters (changeable)
+        // Configurable radius - set to 300 meters for arrival notifications
+        var GEOFENCE_RADIUS = 300.0f // radius in meters (changeable)
 
         private const val GEOFENCE_EXPIRATION = Geofence.NEVER_EXPIRE
         private const val GEOFENCE_DWELL_TIME = 5000 // time in milliseconds

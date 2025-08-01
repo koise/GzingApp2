@@ -79,23 +79,15 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         when (geofenceTransition) {
             Geofence.GEOFENCE_TRANSITION_ENTER -> {
                 if (isNavigationActive) {
-                    // Navigation mode: Show ALARM for arrival
-                    Log.d(TAG, "Navigation active - showing arrival ALARM")
-                    notificationService.showAlarmNotification(
-                        "🚨 DESTINATION REACHED!",
-                        "You have arrived at your destination! Tap STOP ALARM to end navigation.",
-                        ARRIVAL_ALARM_ID
-                    )
-                    
-                    // Ensure the alarm is loud and persistent
-                    notificationService.playAlarmSound()
-                    notificationService.triggerAlarmVibration()
+                    // Navigation mode: Show enhanced arrival alarm for 300m radius
+                    Log.d(TAG, "Navigation active - showing enhanced arrival ALARM for 300m radius")
+                    notificationService.showNavigationArrivalAlarm(ARRIVAL_ALARM_ID)
                 } else {
                     // Passive mode: Show regular notification
                     Log.d(TAG, "Passive mode - showing arrival notification")
                     notificationService.showNotification(
                         "📍 You've Arrived!",
-                        "You have reached your pinned location",
+                        "You have reached your pinned location (within 300m)",
                         ARRIVAL_ALARM_ID
                     )
                 }
