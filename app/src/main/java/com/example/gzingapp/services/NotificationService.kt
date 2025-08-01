@@ -279,6 +279,78 @@ class NotificationService(private val context: Context) {
         }
     }
 
+    /**
+     * Show navigation arrival alarm with enhanced stop functionality and app redirection
+     */
+    fun showNavigationArrivalAlarm(notificationId: Int = 2001) {
+        Log.d(TAG, "Showing navigation arrival alarm within 300m radius")
+        
+        // Create intent to open app when notification is tapped
+        val openAppIntent = Intent(context, DashboardActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            putExtra("navigation_arrival", true) // Flag to indicate arrival
+        }
+
+        val openAppPendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            openAppIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        // Create Stop Alarm action that also redirects to app
+        val stopAlarmIntent = Intent(context, StopAlarmReceiver::class.java).apply {
+            action = STOP_ALARM_ACTION
+            putExtra("notificationId", notificationId)
+            putExtra("redirect_to_app", true) // Flag to redirect to app
+        }
+
+        val stopAlarmPendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId + 1000,
+            stopAlarmIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val builder = NotificationCompat.Builder(context, ALARM_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("🚨 DESTINATION REACHED!")
+            .setContentText("You are within 300 meters of your destination. Tap STOP to end navigation.")
+            .setStyle(NotificationCompat.BigTextStyle()
+                .bigText("You have arrived within 300 meters of your pinned location! Your navigation has reached its destination. Tap 'Stop & Open App' to end navigation and return to the app."))
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setContentIntent(openAppPendingIntent)
+            .setAutoCancel(false)
+            .setOngoing(true)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setFullScreenIntent(openAppPendingIntent, true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .addAction(
+                R.drawable.ic_stop,
+                "Stop & Open App",
+                stopAlarmPendingIntent
+            )
+
+        // Play enhanced alarm sound
+        playAlarmSound()
+
+        // Trigger strong vibration pattern for arrival
+        triggerNavigationArrivalVibration()
+
+        with(NotificationManagerCompat.from(context)) {
+            if (ActivityCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+            ) {
+                notify(notificationId, builder.build())
+                Log.d(TAG, "Navigation arrival alarm notification shown with ID: $notificationId")
+            } else {
+                Log.e(TAG, "POST_NOTIFICATIONS permission not granted")
+            }
+        }
+    }
+
     private fun playAlarmSound() {
         try {
             // Stop any existing sound using static method
@@ -352,6 +424,31 @@ class NotificationService(private val context: Context) {
                 it.vibrate(alarmPattern, 0) // Repeat pattern
             }
             Log.d(TAG, "Alarm vibration triggered (static reference)")
+        }
+    }
+
+    /**
+     * Trigger enhanced vibration pattern for navigation arrival (within 300m)
+     */
+    private fun triggerNavigationArrivalVibration() {
+        // Enhanced pattern: short-long-short-long-long (arrival signal)
+        val arrivalPattern = longArrayOf(0, 300, 200, 800, 200, 300, 200, 800, 200, 800)
+
+        // Use static reference so it can be stopped from receiver
+        currentVibrator?.let {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                it.vibrate(
+                    android.os.VibrationEffect.createWaveform(arrivalPattern, 0), // Repeat pattern
+                    AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .build()
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                it.vibrate(arrivalPattern, 0) // Repeat pattern
+            }
+            Log.d(TAG, "Navigation arrival vibration triggered (300m radius)")
         }
     }
 

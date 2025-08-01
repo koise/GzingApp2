@@ -406,7 +406,7 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         // Navigation button
         btnStartNavigation.setOnClickListener {
             if (isNavigating) {
-                stopNavigation()
+                showNavigationCancellationDialog()
             } else {
                 startNavigation()
             }
@@ -806,9 +806,18 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         if (isNavigating) {
             navigationStatusSection.visibility = View.VISIBLE
             navigationInstructions.visibility = View.VISIBLE
-            tvNavigationStatus.text = getString(R.string.navigation_active)
+            
+            // Enhanced navigation status with more information
+            val duration = navigationHelper.getNavigationDuration()
+            val durationText = if (duration > 0) {
+                val minutes = duration / 60000
+                val seconds = (duration % 60000) / 1000
+                if (minutes > 0) "${minutes}m ${seconds}s" else "${seconds}s"
+            } else "Just started"
+            
+            tvNavigationStatus.text = "🧭 Navigation Active ($durationText) - Will notify within 300m"
             tvNavigationStatus.setTextColor(ContextCompat.getColor(this, R.color.navigation_active))
-            btnToggleNavigation.text = getString(R.string.stop_navigation)
+            btnToggleNavigation.text = "Cancel Navigation"
             btnToggleNavigation.setBackgroundColor(
                 ContextCompat.getColor(
                     this,
@@ -816,19 +825,26 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                 )
             )
             tvNoPinMessage.visibility = View.GONE
+            
+            // Add pulsing animation to indicate active navigation
+            startNavigationPulseAnimation()
         } else {
             navigationStatusSection.visibility = View.GONE
             navigationInstructions.visibility = View.GONE
-            btnToggleNavigation.text = getString(R.string.start_navigation)
+            btnToggleNavigation.text = if (pinnedLocation != null) "Start Navigation" else "Pin a Location First"
             btnToggleNavigation.setBackgroundColor(
                 ContextCompat.getColor(
                     this,
-                    R.color.primary_brown
+                    if (pinnedLocation != null) R.color.primary_brown else R.color.navigation_error
                 )
             )
+            btnToggleNavigation.isEnabled = pinnedLocation != null
 
             if (pinnedLocation == null) {
+                tvNoPinMessage.text = "📍 Tap anywhere on the map to pin a destination and start navigation"
                 tvNoPinMessage.visibility = View.VISIBLE
+            } else {
+                tvNoPinMessage.visibility = View.GONE
             }
         }
 
@@ -836,14 +852,25 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         updateNavigationButton()
     }
 
+    /**
+     * Start a subtle pulsing animation to indicate active navigation
+     */
+    private fun startNavigationPulseAnimation() {
+        navigationStatusAnimation = ObjectAnimator.ofFloat(tvNavigationStatus, "alpha", 1.0f, 0.7f, 1.0f).apply {
+            duration = 2000
+            repeatCount = ObjectAnimator.INFINITE
+            start()
+        }
+    }
+
     private fun updateNavigationButton() {
         if (isNavigating) {
-            tvNavigationText.text = getString(R.string.stop_navigation)
+            tvNavigationText.text = "Cancel Navigation"
             tvNavigationText.setTextColor(ContextCompat.getColor(this, R.color.navigation_error))
             ivNavigationIcon.setImageResource(R.drawable.ic_stop)
             ivNavigationIcon.setColorFilter(ContextCompat.getColor(this, R.color.navigation_error))
         } else {
-            tvNavigationText.text = getString(R.string.start_navigation)
+            tvNavigationText.text = "Start Navigation"
             tvNavigationText.setTextColor(ContextCompat.getColor(this, R.color.primary_brown))
             ivNavigationIcon.setImageResource(R.drawable.ic_navigation)
             ivNavigationIcon.setColorFilter(ContextCompat.getColor(this, R.color.primary_brown))
@@ -965,6 +992,47 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                 stopNavigation()
             }
             .show()
+    }
+
+    /**
+     * Show enhanced navigation cancellation dialog with clear options
+     */
+    private fun showNavigationCancellationDialog() {
+        val destination = navigationHelper.getCurrentDestination()
+        val duration = navigationHelper.getNavigationDuration()
+        val durationText = if (duration > 0) {
+            val minutes = duration / 60000
+            val seconds = (duration % 60000) / 1000
+            if (minutes > 0) "${minutes}m ${seconds}s" else "${seconds}s"
+        } else "Just started"
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Cancel Navigation?")
+            .setMessage("You can cancel your navigation at any time.\n\n" +
+                    "Current journey: $durationText\n" +
+                    "You'll be notified when you reach within 300 meters of your destination.\n\n" +
+                    "Do you want to cancel navigation now?")
+            .setPositiveButton("Yes, Cancel Navigation") { _, _ ->
+                cancelNavigation()
+            }
+            .setNegativeButton("Continue Navigation", null)
+            .setIcon(android.R.drawable.ic_dialog_info)
+            .show()
+    }
+
+    /**
+     * Cancel navigation with proper cleanup and user feedback
+     */
+    private fun cancelNavigation() {
+        Log.d(TAG, "User cancelled navigation")
+        
+        stopNavigation()
+        
+        Toast.makeText(
+            this, 
+            "Navigation cancelled. You can start a new navigation anytime by tapping on the map.", 
+            Toast.LENGTH_LONG
+        ).show()
     }
 
     /**
@@ -1120,24 +1188,49 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     private fun handleAlarmStoppedIntent() {
         if (intent.getBooleanExtra("alarm_stopped", false)) {
             val stoppedAlarmId = intent.getIntExtra("stopped_alarm_id", -1)
+            val navigationArrived = intent.getBooleanExtra("navigation_arrived", false)
+            val arrivalCompleted = intent.getBooleanExtra("arrival_completed", false)
             val navigationEnded = intent.getBooleanExtra("navigation_ended", false)
 
-            if (navigationEnded) {
-                // Navigation was already ended by the alarm stop action
+            Log.d(TAG, "Handling alarm stopped intent - ID: $stoppedAlarmId, arrived: $navigationArrived, completed: $arrivalCompleted")
+
+            if (navigationArrived || arrivalCompleted) {
+                // Navigation arrival completed - user reached destination within 300m
                 lifecycleScope.launch {
-                    // Stop navigation completely
+                    // Stop navigation completely and clear state
                     stopNavigation()
                     
-                    // Show completion message
+                    // Clear pinned location as journey is complete
+                    pinnedLocation = null
+                    currentMarker?.remove()
+                    currentPolyline?.remove()
+                    geofenceCircle?.remove()
+                    
+                    // Update UI to reflect completion
+                    updateNavigationUI()
+                    updateMapInteraction()
+                    
+                    // Show enhanced completion message
                     Toast.makeText(this@DashboardActivity, 
-                        "You've reached your destination! Navigation ended.", 
+                        "🎉 Navigation Complete! You've arrived within 300 meters of your destination.", 
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    Log.d(TAG, "Navigation arrival completed successfully")
+                }
+            } else if (navigationEnded) {
+                // Legacy handling for other navigation endings
+                lifecycleScope.launch {
+                    stopNavigation()
+                    
+                    Toast.makeText(this@DashboardActivity, 
+                        "Navigation ended.", 
                         Toast.LENGTH_LONG
                     ).show()
                 }
             }
 
             Log.d(TAG, "Alarm stopped handling completed, alarm ID: $stoppedAlarmId")
-        }
         }
     }
 
@@ -1174,7 +1267,7 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
             }
 
             if (isNavigating) {
-                stopNavigation()
+                showNavigationCancellationDialog()
             } else {
                 startNavigation()
             }
@@ -1341,18 +1434,38 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         currentPolyline?.remove()
         geofenceCircle?.remove()
 
-        // Add new marker
+        // Add new marker with enhanced styling
         currentMarker = mMap.addMarker(
             MarkerOptions()
                 .position(latLng)
-                .title("Pinned Location (${GeofenceHelper.getGeofenceRadius().toInt()}m geofence)")
+                .title("📍 Pinned Destination")
+                .snippet("Tap 'Start Navigation' to begin your journey\nYou'll be notified within 300 meters")
         )
 
         pinnedLocation = latLng
-        mMap.animateCamera(CameraUpdateFactory.newLatLng(latLng))
+        
+        // Enhanced camera animation to show the pinned location clearly
+        mMap.animateCamera(
+            CameraUpdateFactory.newLatLngZoom(latLng, 15f),
+            1000,
+            null
+        )
 
         // Add geofence visualization (but don't activate geofence yet)
         addGeofenceVisualization(latLng, GeofenceHelper.getGeofenceRadius())
+
+        // Show confirmation feedback
+        Toast.makeText(
+            this, 
+            "📍 Location pinned! Tap the pin for navigation options.", 
+            Toast.LENGTH_LONG
+        ).show()
+
+        // Auto-show the marker info window to give immediate feedback
+        lifecycleScope.launch {
+            delay(500) // Wait for animation to complete
+            currentMarker?.showInfoWindow()
+        }
     }
 
     private fun updateCurrentLocationInfo(latLng: LatLng) {

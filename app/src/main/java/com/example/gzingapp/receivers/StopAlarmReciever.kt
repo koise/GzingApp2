@@ -20,7 +20,8 @@ class StopAlarmReceiver : BroadcastReceiver() {
         when (intent.action) {
             NotificationService.STOP_ALARM_ACTION -> {
                 val notificationId = intent.getIntExtra("notificationId", -1)
-                Log.d(TAG, "Processing stop alarm for notification ID: $notificationId")
+                val redirectToApp = intent.getBooleanExtra("redirect_to_app", true)
+                Log.d(TAG, "Processing stop alarm for notification ID: $notificationId, redirect: $redirectToApp")
 
                 try {
                     // Force stop all alarm components
@@ -32,27 +33,35 @@ class StopAlarmReceiver : BroadcastReceiver() {
                     val prefs = context.getSharedPreferences("navigation_prefs", Context.MODE_PRIVATE)
                     
                     // Check if this was a destination arrival alarm
-                    if (notificationId == GeofenceBroadcastReceiver.ARRIVAL_ALARM_ID) {
+                    if (notificationId == 2001) { // ARRIVAL_ALARM_ID
                         // Clear navigation mode when alarm is stopped
                         with(prefs.edit()) {
                             putBoolean("navigation_active", false)
+                            remove("destination_lat")
+                            remove("destination_lng")
+                            remove("navigation_start_time")
                             apply()
                         }
-                        Log.d(TAG, "Navigation mode cleared after alarm stop")
+                        Log.d(TAG, "Navigation mode and destination cleared after arrival alarm stop")
                     }
 
-                    // Open the app
-                    val appIntent = Intent(context, DashboardActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                                Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                                Intent.FLAG_ACTIVITY_SINGLE_TOP
-                        putExtra("alarm_stopped", true)
-                        putExtra("stopped_alarm_id", notificationId)
-                        putExtra("navigation_ended", true)
-                    }
+                    // Open the app if redirect flag is set
+                    if (redirectToApp) {
+                        val appIntent = Intent(context, DashboardActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                            putExtra("alarm_stopped", true)
+                            putExtra("stopped_alarm_id", notificationId)
+                            putExtra("navigation_arrived", true)
+                            putExtra("arrival_completed", true)
+                        }
 
-                    context.startActivity(appIntent)
-                    Log.d(TAG, "App opened for stopped alarm notification ID: $notificationId")
+                        context.startActivity(appIntent)
+                        Log.d(TAG, "App opened after navigation arrival - alarm stopped for ID: $notificationId")
+                    } else {
+                        Log.d(TAG, "Alarm stopped without app redirection for ID: $notificationId")
+                    }
 
                 } catch (e: Exception) {
                     Log.e(TAG, "Error stopping alarm", e)
