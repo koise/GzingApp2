@@ -18,7 +18,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         private const val KEY_NAVIGATION_ACTIVE = "navigation_active"
 
         // Notification IDs for different types
-        private const val ARRIVAL_ALARM_ID = 2001
+        const val ARRIVAL_ALARM_ID = 2001
         private const val DWELL_NOTIFICATION_ID = 2002
         private const val EXIT_NOTIFICATION_ID = 2003
     }
