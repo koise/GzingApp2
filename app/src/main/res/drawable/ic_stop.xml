@@ -1,0 +1,49 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Outer red circle -->
+    <path
+        android:fillColor="#E53E3E"
+        android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z" />
+
+    <!-- Inner darker red circle -->
+    <path
+        android:fillColor="#C53030"
+        android:pathData="M12,3C7.03,3 3,7.03 3,12s4.03,9 9,9 9,-4.03 9,-9S16.97,3 12,3z" />
+
+    <!-- Bell shape -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,5.5c-2.21,0 -4,1.79 -4,4v1.5c0,0.55 -0.22,1.05 -0.59,1.41L6.59,13.24C6.22,13.61 6,14.11 6,14.66V15c0,0.55 0.45,1 1,1h10c0.55,0 1,-0.45 1,-1v-0.34c0,-0.55 -0.22,-1.05 -0.59,-1.41L16.59,12.41C16.22,12.05 16,11.55 16,11V9.5C16,7.29 14.21,5.5 12,5.5z" />
+
+    <!-- Bell clapper (circle converted to path) -->
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M12,15.7a0.8,0.8 0 1,0 0,1.6a0.8,0.8 0 1,0 0,-1.6z" />
+
+    <!-- X mark (cross lines) -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M8.5,8.5 L15.5,15.5" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M15.5,8.5 L8.5,15.5" />
+
+    <!-- Highlight on bell -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.3"
+        android:pathData="M10,7c0.8,-0.6 1.8,-1 2.8,-1 1.5,0 2.8,0.8 3.5,2 -0.3,-0.8 -1,-1.5 -1.8,-1.8C13.5,6 12.8,6 12,6 11.3,6 10.6,6.3 10,7z" />
+
+</vector>

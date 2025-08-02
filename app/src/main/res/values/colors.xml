@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base colors -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- App theme colors -->
+    <color name="primary_beige">#F5F5DC</color>
+    <color name="light_beige">#FFF8DC</color>
+    <color name="dark_beige">#E8E4C9</color>
+
+    <!-- Navigation State Colors -->
+    <color name="navigation_active">#4CAF50</color>
+    <color name="navigation_inactive">#8B4513</color>
+    <color name="navigation_warning">#FF9800</color>
+    <color name="navigation_error">#F44336</color>
+
+    <!-- Status Colors -->
+    <color name="info">#2196F3</color>
+    <color name="primary_brown">#8B4513</color>
+    <color name="light_brown">#A0522D</color>
+    <color name="dark_brown">#654321</color>
+    
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+    
+    <color name="error">#B00020</color>
+    <color name="success">#4CAF50</color>
+    <color name="warning">#FFA000</color>
+
+    <color name="medium_brown">#8B4A2B</color>
+</resources>
