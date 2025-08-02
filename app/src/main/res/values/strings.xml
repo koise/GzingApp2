@@ -82,14 +82,14 @@
     <string name="alarm_message">This is a test alarm notification!</string>
 
     <!-- Settings Activity -->
-    <string name="geofence_settings">Geofence Settings</string>
+    <string name="geofence_settings">Radius Settings</string>
     <string name="geofence_radius_description">Choose the radius for location-based notifications. A smaller radius requires you to be closer to your pinned location to trigger alerts.</string>
-    <string name="select_geofence_radius">Select Geofence Radius:</string>
+    <string name="select_geofence_radius">Select Radius:</string>
     <string name="radius_50m">50 meters (Very Close)</string>
     <string name="radius_100m">100 meters (Close) - Default</string>
     <string name="radius_150m">150 meters (Moderate)</string>
     <string name="radius_200m">200 meters (Far)</string>
-    <string name="geofence_radius_updated">Geofence radius updated to %d meters</string>
+    <string name="geofence_radius_updated">Radius updated to %d meters</string>
 
     <string name="notification_settings">Notification Settings</string>
     <string name="notification_settings_description">Customize how you receive location-based alerts and notifications.</string>

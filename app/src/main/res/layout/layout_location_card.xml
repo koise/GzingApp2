@@ -83,6 +83,34 @@
                 android:textSize="12sp" />
         </LinearLayout>
 
+        <!-- Navigation Instructions Section -->
+        <LinearLayout
+            android:id="@+id/navigationInstructions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:background="@color/light_beige"
+            android:padding="8dp"
+            android:layout_marginBottom="8dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Navigation Tips:"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="• Keep the app running in background\n• Ensure location services are enabled\n• You'll receive an alarm notification upon arrival"
+                android:textSize="11sp"
+                android:textColor="@color/text_secondary" />
+        </LinearLayout>
+
         <!-- Current Location Section -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -106,6 +134,16 @@
                 tools:text="123 Main Street, City, State" />
         </LinearLayout>
 
+        <!-- Pinned Location Divider (referenced in code) -->
+        <View
+            android:id="@+id/pinnedLocationDivider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            android:background="@color/light_beige"
+            android:visibility="gone" />
+
         <!-- Pinned Location Section -->
         <LinearLayout
             android:id="@+id/pinnedLocationSection"
@@ -113,13 +151,6 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:visibility="gone">
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
-                android:background="@color/light_beige" />
 
             <TextView
                 android:layout_width="wrap_content"

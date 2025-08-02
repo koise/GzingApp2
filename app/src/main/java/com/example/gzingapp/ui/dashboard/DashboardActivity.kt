@@ -22,6 +22,7 @@ import android.widget.ProgressBar
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.ActionBarDrawerToggle
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
@@ -62,6 +63,46 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 
 class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener, OnMapReadyCallback {
+
+    companion object {
+        private const val TAG = "DashboardActivity"
+    }
+
+    override fun onNavigationItemSelected(item: MenuItem): Boolean {
+        when (item.itemId) {
+            R.id.menu_account -> {
+                if (isNavigating) {
+                    Toast.makeText(this, getString(R.string.drawer_locked_message), Toast.LENGTH_SHORT).show()
+                    return false
+                }
+                Toast.makeText(this, "Account", Toast.LENGTH_SHORT).show()
+            }
+            R.id.menu_settings -> {
+                // Check if navigation is active
+                if (isNavigating) {
+                    Toast.makeText(this, getString(R.string.drawer_locked_message), Toast.LENGTH_SHORT).show()
+                    return false
+                }
+                startActivity(Intent(this, SettingsActivity::class.java))
+            }
+            R.id.menu_history -> {
+                if (isNavigating) {
+                    Toast.makeText(this, getString(R.string.drawer_locked_message), Toast.LENGTH_SHORT).show()
+                    return false
+                }
+                Toast.makeText(this, "History", Toast.LENGTH_SHORT).show()
+            }
+            R.id.menu_logout -> {
+                if (isNavigating) {
+                    showLogoutDialog()
+                } else {
+                    performLogout()
+                }
+            }
+        }
+        drawerLayout.closeDrawer(GravityCompat.START)
+        return true
+    }
 
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var navigationView: NavigationView
@@ -201,10 +242,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         }
     }
 
-    companion object {
-        private const val TAG = "DashboardActivity"
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_dashboard)
@@ -341,7 +378,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         // Set toolbar as ActionBar
         setSupportActionBar(toolbar)
     }
-
     private fun setupNavigationDrawer() {
         toggle = ActionBarDrawerToggle(
             this,
@@ -1127,10 +1163,10 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                 lifecycleScope.launch {
                     // Stop navigation completely
                     stopNavigation()
-                    
+
                     // Show completion message
-                    Toast.makeText(this@DashboardActivity, 
-                        "You've reached your destination! Navigation ended.", 
+                    Toast.makeText(this@DashboardActivity,
+                        "You've reached your destination! Navigation ended.",
                         Toast.LENGTH_LONG
                     ).show()
                 }
@@ -1155,6 +1191,10 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         tvNavigationStatus = locationCard.findViewById(R.id.tvNavigationStatus)
         btnToggleNavigation = locationCard.findViewById(R.id.btnToggleNavigation)
         progressNavigation = locationCard.findViewById(R.id.progressNavigation)
+
+        // Initialize pinnedLocationDivider and navigationInstructions
+        pinnedLocationDivider = locationCard.findViewById(R.id.pinnedLocationDivider) ?: View(this)
+        navigationInstructions = locationCard.findViewById(R.id.navigationInstructions) ?: View(this)
 
         tvCurrentLocationAddress.text = getString(R.string.calculating)
 
@@ -1398,38 +1438,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         updateTrafficColor(trafficCondition)
     }
 
-    // Override menu handling to prevent navigation during active navigation
-    override fun onNavigationItemSelected(item: MenuItem): Boolean {
-        if (isNavigating) {
-            Toast.makeText(this, getString(R.string.drawer_locked_message), Toast.LENGTH_SHORT)
-                .show()
-            drawerLayout.closeDrawer(GravityCompat.START)
-            return false
-        }
-
-        when (item.itemId) {
-            R.id.menu_account -> {
-                Toast.makeText(this, "Account", Toast.LENGTH_SHORT).show()
-            }
-
-            R.id.menu_settings -> {
-                val intent = Intent(this, SettingsActivity::class.java)
-                startActivity(intent)
-            }
-
-            R.id.menu_history -> {
-                Toast.makeText(this, "History", Toast.LENGTH_SHORT).show()
-            }
-
-            R.id.menu_logout -> {
-                logout()
-            }
-        }
-
-        drawerLayout.closeDrawer(GravityCompat.START)
-        return true
-    }
-
     private fun logout() {
         lifecycleScope.launch {
             try {
@@ -1460,8 +1468,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         startActivity(intent)
         finish()
     }
-
-
 
     override fun onResume() {
         super.onResume()
@@ -1498,5 +1504,20 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
 
         // Don't stop navigation when pausing - let it continue in background
         Log.d(TAG, "Activity paused, navigation continues in background")
+    }
+
+    private fun showLogoutDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Confirm Logout")
+            .setMessage("You are currently navigating. Do you want to stop navigation and logout?")
+            .setPositiveButton("Logout") { _, _ ->
+                performLogout()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun performLogout() {
+        logout()
     }
 }

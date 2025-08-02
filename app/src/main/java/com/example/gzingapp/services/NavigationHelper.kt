@@ -2,9 +2,13 @@ package com.example.gzingapp.services
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.example.gzingapp.services.GeofenceHelper
 import com.google.android.gms.maps.model.LatLng
+import java.util.concurrent.atomic.AtomicBoolean
+
 class NavigationHelper(private val context: Context) {
 
     companion object {
@@ -14,21 +18,94 @@ class NavigationHelper(private val context: Context) {
         private const val KEY_DESTINATION_LAT = "destination_lat"
         private const val KEY_DESTINATION_LNG = "destination_lng"
         private const val KEY_NAVIGATION_START_TIME = "navigation_start_time"
+
+        // Timeout constants
+        private const val NAVIGATION_START_TIMEOUT = 30000L // 30 seconds
+        private const val NAVIGATION_STOP_TIMEOUT = 15000L // 15 seconds
+        private const val GEOFENCE_SETUP_TIMEOUT = 20000L // 20 seconds
     }
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val geofenceHelper: GeofenceHelper by lazy { GeofenceHelper(context) }
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    // Loading state management
+    private val isStartingNavigation = AtomicBoolean(false)
+    private val isStoppingNavigation = AtomicBoolean(false)
+    private val isPausingNavigation = AtomicBoolean(false)
+    private val isResumingNavigation = AtomicBoolean(false)
+
+    // Timeout handlers
+    private var startNavigationTimeoutHandler: Runnable? = null
+    private var stopNavigationTimeoutHandler: Runnable? = null
 
     /**
-     * Start navigation to a destination with enhanced error handling
+     * Navigation state enum for better state management
      */
-    fun startNavigation(destination: LatLng, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
+    enum class NavigationState {
+        IDLE,
+        STARTING,
+        ACTIVE,
+        STOPPING,
+        PAUSED,
+        RESUMING,
+        ERROR
+    }
+
+    private var currentState = NavigationState.IDLE
+
+    /**
+     * Start navigation to a destination with enhanced error handling, loading states, and timeout
+     */
+    fun startNavigation(
+        destination: LatLng,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit,
+        onLoadingStateChanged: ((Boolean) -> Unit)? = null
+    ) {
         Log.d(TAG, "Starting navigation to: $destination")
+
+        // Check if already starting navigation
+        if (!isStartingNavigation.compareAndSet(false, true)) {
+            onFailure(IllegalStateException("Navigation is already being started"))
+            return
+        }
+
+        // Update state and notify loading
+        currentState = NavigationState.STARTING
+        onLoadingStateChanged?.invoke(true)
+
+        // Set up timeout for navigation start
+        startNavigationTimeoutHandler = Runnable {
+            if (isStartingNavigation.get() && currentState == NavigationState.STARTING) {
+                Log.e(TAG, "Navigation start timeout reached")
+                handleNavigationStartFailure(
+                    Exception("Navigation start timeout - operation took too long"),
+                    onFailure,
+                    onLoadingStateChanged
+                )
+            }
+        }
+        mainHandler.postDelayed(startNavigationTimeoutHandler!!, NAVIGATION_START_TIMEOUT)
 
         try {
             // Validate destination
             if (destination.latitude == 0.0 && destination.longitude == 0.0) {
-                onFailure(IllegalArgumentException("Invalid destination coordinates"))
+                handleNavigationStartFailure(
+                    IllegalArgumentException("Invalid destination coordinates"),
+                    onFailure,
+                    onLoadingStateChanged
+                )
+                return
+            }
+
+            // Validate current state
+            if (currentState == NavigationState.ACTIVE) {
+                handleNavigationStartFailure(
+                    IllegalStateException("Navigation is already active"),
+                    onFailure,
+                    onLoadingStateChanged
+                )
                 return
             }
 
@@ -37,31 +114,67 @@ class NavigationHelper(private val context: Context) {
                 destination,
                 onSuccess = {
                     try {
+                        // Cancel timeout as we're making progress
+                        startNavigationTimeoutHandler?.let { mainHandler.removeCallbacks(it) }
+
                         // Geofence created successfully, now activate navigation mode
                         setNavigationMode(true, destination)
+
+                        // Update state
+                        currentState = NavigationState.ACTIVE
+                        isStartingNavigation.set(false)
+                        onLoadingStateChanged?.invoke(false)
+
                         Log.d(TAG, "Navigation started successfully")
                         onSuccess()
                     } catch (e: Exception) {
                         Log.e(TAG, "Error setting navigation mode after geofence creation", e)
-                        onFailure(e)
+                        handleNavigationStartFailure(e, onFailure, onLoadingStateChanged)
                     }
                 },
                 onFailure = { error ->
-                    Log.e(TAG, "Failed to start navigation", error)
-                    onFailure(error)
+                    Log.e(TAG, "Failed to start navigation - geofence creation failed", error)
+                    handleNavigationStartFailure(error, onFailure, onLoadingStateChanged)
                 }
             )
         } catch (e: Exception) {
             Log.e(TAG, "Critical error in startNavigation", e)
-            onFailure(e)
+            handleNavigationStartFailure(e, onFailure, onLoadingStateChanged)
         }
     }
 
     /**
-     * Stop navigation with enhanced error handling
+     * Stop navigation with enhanced error handling, loading states, and timeout
      */
-    fun stopNavigation(onSuccess: (() -> Unit)? = null, onFailure: ((Exception) -> Unit)? = null) {
+    fun stopNavigation(
+        onSuccess: (() -> Unit)? = null,
+        onFailure: ((Exception) -> Unit)? = null,
+        onLoadingStateChanged: ((Boolean) -> Unit)? = null
+    ) {
         Log.d(TAG, "Stopping navigation")
+
+        // Check if already stopping navigation
+        if (!isStoppingNavigation.compareAndSet(false, true)) {
+            onFailure?.invoke(IllegalStateException("Navigation is already being stopped"))
+            return
+        }
+
+        // Update state and notify loading
+        currentState = NavigationState.STOPPING
+        onLoadingStateChanged?.invoke(true)
+
+        // Set up timeout for navigation stop
+        stopNavigationTimeoutHandler = Runnable {
+            if (isStoppingNavigation.get() && currentState == NavigationState.STOPPING) {
+                Log.e(TAG, "Navigation stop timeout reached")
+                handleNavigationStopFailure(
+                    Exception("Navigation stop timeout - operation took too long"),
+                    onFailure,
+                    onLoadingStateChanged
+                )
+            }
+        }
+        mainHandler.postDelayed(stopNavigationTimeoutHandler!!, NAVIGATION_STOP_TIMEOUT)
 
         try {
             // Turn off navigation mode first
@@ -70,60 +183,99 @@ class NavigationHelper(private val context: Context) {
             // Remove geofence (or keep it as passive monitoring)
             geofenceHelper.removeGeofence(
                 onSuccess = {
+                    // Cancel timeout
+                    stopNavigationTimeoutHandler?.let { mainHandler.removeCallbacks(it) }
+
+                    // Update state
+                    currentState = NavigationState.IDLE
+                    isStoppingNavigation.set(false)
+                    onLoadingStateChanged?.invoke(false)
+
                     Log.d(TAG, "Navigation stopped successfully")
                     onSuccess?.invoke()
                 },
                 onFailure = { error ->
                     Log.e(TAG, "Failed to stop navigation cleanly", error)
                     // Still consider navigation stopped even if geofence removal failed
-                    onFailure?.invoke(error)
+                    handleNavigationStopFailure(error, onFailure, onLoadingStateChanged)
                 }
             )
         } catch (e: Exception) {
             Log.e(TAG, "Critical error in stopNavigation", e)
-            // Ensure navigation is marked as stopped even on error
-            try {
-                setNavigationMode(false)
-            } catch (setModeError: Exception) {
-                Log.e(TAG, "Failed to set navigation mode to false", setModeError)
-            }
-            onFailure?.invoke(e)
+            handleNavigationStopFailure(e, onFailure, onLoadingStateChanged)
         }
     }
 
     /**
-     * Pause navigation with error handling
+     * Pause navigation with loading state and error handling
      */
-    fun pauseNavigation() {
+    fun pauseNavigation(onLoadingStateChanged: ((Boolean) -> Unit)? = null) {
+        if (!isPausingNavigation.compareAndSet(false, true)) {
+            Log.w(TAG, "Navigation is already being paused")
+            return
+        }
+
         try {
             Log.d(TAG, "Pausing navigation")
+            onLoadingStateChanged?.invoke(true)
+
+            currentState = NavigationState.PAUSED
             setNavigationMode(false)
 
             // Update geofence to passive mode
             geofenceHelper.setNavigationMode(false)
+
+            // Simulate brief loading for UI feedback
+            mainHandler.postDelayed({
+                isPausingNavigation.set(false)
+                onLoadingStateChanged?.invoke(false)
+            }, 1000)
+
         } catch (e: Exception) {
             Log.e(TAG, "Error pausing navigation", e)
+            isPausingNavigation.set(false)
+            onLoadingStateChanged?.invoke(false)
         }
     }
 
     /**
-     * Resume navigation with validation
+     * Resume navigation with validation and loading state
      */
-    fun resumeNavigation(): Boolean {
+    fun resumeNavigation(onLoadingStateChanged: ((Boolean) -> Unit)? = null): Boolean {
+        if (!isResumingNavigation.compareAndSet(false, true)) {
+            Log.w(TAG, "Navigation is already being resumed")
+            return false
+        }
+
         return try {
+            onLoadingStateChanged?.invoke(true)
             val destination = getCurrentDestination()
 
             if (destination != null && geofenceHelper.hasGeofence()) {
                 Log.d(TAG, "Resuming navigation to: $destination")
+
+                currentState = NavigationState.RESUMING
                 setNavigationMode(true, destination)
                 geofenceHelper.setNavigationMode(true)
+
+                // Simulate brief loading for UI feedback
+                mainHandler.postDelayed({
+                    currentState = NavigationState.ACTIVE
+                    isResumingNavigation.set(false)
+                    onLoadingStateChanged?.invoke(false)
+                }, 1500)
+
                 true
             } else {
                 Log.w(TAG, "Cannot resume navigation - no destination or geofence")
+                isResumingNavigation.set(false)
+                onLoadingStateChanged?.invoke(false)
                 false
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error resuming navigation", e)
+            isResumingNavigation.set(false)
+            onLoadingStateChanged?.invoke(false)
             false
         }
     }
@@ -133,7 +285,7 @@ class NavigationHelper(private val context: Context) {
      */
     fun isNavigationActive(): Boolean {
         return try {
-            prefs.getBoolean(KEY_NAVIGATION_ACTIVE, false)
+            prefs.getBoolean(KEY_NAVIGATION_ACTIVE, false) && currentState == NavigationState.ACTIVE
         } catch (e: Exception) {
             Log.e(TAG, "Error checking navigation active state", e)
             false
@@ -141,11 +293,27 @@ class NavigationHelper(private val context: Context) {
     }
 
     /**
+     * Get current navigation state
+     */
+    fun getNavigationState(): NavigationState {
+        return currentState
+    }
+
+    /**
+     * Check if any navigation operation is in progress
+     */
+    fun isOperationInProgress(): Boolean {
+        return isStartingNavigation.get() || isStoppingNavigation.get() ||
+                isPausingNavigation.get() || isResumingNavigation.get() ||
+                currentState in listOf(NavigationState.STARTING, NavigationState.STOPPING, NavigationState.RESUMING)
+    }
+
+    /**
      * Get current destination with validation
      */
     fun getCurrentDestination(): LatLng? {
         return try {
-            if (!isNavigationActive()) return null
+            if (!isNavigationActive() && currentState != NavigationState.PAUSED) return null
 
             val lat = prefs.getFloat(KEY_DESTINATION_LAT, 0f).toDouble()
             val lng = prefs.getFloat(KEY_DESTINATION_LNG, 0f).toDouble()
@@ -167,7 +335,7 @@ class NavigationHelper(private val context: Context) {
      */
     fun getNavigationDuration(): Long {
         return try {
-            if (!isNavigationActive()) return 0
+            if (!isNavigationActive() && currentState != NavigationState.PAUSED) return 0
 
             val startTime = prefs.getLong(KEY_NAVIGATION_START_TIME, 0)
             if (startTime > 0) {
@@ -197,7 +365,9 @@ class NavigationHelper(private val context: Context) {
                 durationMs = duration,
                 geofenceRadius = geofenceStatus.radius,
                 hasGeofence = geofenceStatus.hasGeofence,
-                isGeofenceActive = geofenceStatus.isActive
+                isGeofenceActive = geofenceStatus.isActive,
+                navigationState = currentState,
+                isOperationInProgress = isOperationInProgress()
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error getting navigation status", e)
@@ -207,9 +377,107 @@ class NavigationHelper(private val context: Context) {
                 durationMs = 0,
                 geofenceRadius = 100f,
                 hasGeofence = false,
-                isGeofenceActive = false
+                isGeofenceActive = false,
+                navigationState = NavigationState.ERROR,
+                isOperationInProgress = false
             )
         }
+    }
+
+    /**
+     * Cancel any ongoing operation (useful for cleanup)
+     */
+    fun cancelOngoingOperations() {
+        try {
+            // Cancel timeouts
+            startNavigationTimeoutHandler?.let { mainHandler.removeCallbacks(it) }
+            stopNavigationTimeoutHandler?.let { mainHandler.removeCallbacks(it) }
+
+            // Reset loading states
+            isStartingNavigation.set(false)
+            isStoppingNavigation.set(false)
+            isPausingNavigation.set(false)
+            isResumingNavigation.set(false)
+
+            // If we were in a transitional state, try to determine the actual state
+            when (currentState) {
+                NavigationState.STARTING -> {
+                    currentState = if (prefs.getBoolean(KEY_NAVIGATION_ACTIVE, false)) {
+                        NavigationState.ACTIVE
+                    } else {
+                        NavigationState.IDLE
+                    }
+                }
+                NavigationState.STOPPING -> {
+                    currentState = NavigationState.IDLE
+                }
+                NavigationState.RESUMING -> {
+                    currentState = if (prefs.getBoolean(KEY_NAVIGATION_ACTIVE, false)) {
+                        NavigationState.ACTIVE
+                    } else {
+                        NavigationState.PAUSED
+                    }
+                }
+                else -> { /* Keep current state */ }
+            }
+
+            Log.d(TAG, "Cancelled ongoing operations, current state: $currentState")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error cancelling ongoing operations", e)
+        }
+    }
+
+    /**
+     * Handle navigation start failure with cleanup
+     */
+    private fun handleNavigationStartFailure(
+        error: Exception,
+        onFailure: (Exception) -> Unit,
+        onLoadingStateChanged: ((Boolean) -> Unit)?
+    ) {
+        // Cancel timeout
+        startNavigationTimeoutHandler?.let { mainHandler.removeCallbacks(it) }
+
+        // Reset state
+        currentState = NavigationState.ERROR
+        isStartingNavigation.set(false)
+        onLoadingStateChanged?.invoke(false)
+
+        // Ensure navigation is marked as stopped
+        try {
+            setNavigationMode(false)
+        } catch (setModeError: Exception) {
+            Log.e(TAG, "Failed to set navigation mode to false during failure cleanup", setModeError)
+        }
+
+        currentState = NavigationState.IDLE
+        onFailure(error)
+    }
+
+    /**
+     * Handle navigation stop failure with cleanup
+     */
+    private fun handleNavigationStopFailure(
+        error: Exception,
+        onFailure: ((Exception) -> Unit)?,
+        onLoadingStateChanged: ((Boolean) -> Unit)?
+    ) {
+        // Cancel timeout
+        stopNavigationTimeoutHandler?.let { mainHandler.removeCallbacks(it) }
+
+        // Ensure navigation is marked as stopped even on error
+        try {
+            setNavigationMode(false)
+        } catch (setModeError: Exception) {
+            Log.e(TAG, "Failed to set navigation mode to false during stop failure", setModeError)
+        }
+
+        // Reset state
+        currentState = NavigationState.IDLE
+        isStoppingNavigation.set(false)
+        onLoadingStateChanged?.invoke(false)
+
+        onFailure?.invoke(error)
     }
 
     /**
@@ -247,7 +515,14 @@ class NavigationHelper(private val context: Context) {
     }
 
     /**
-     * Data class for navigation status
+     * Clean up resources
+     */
+    fun cleanup() {
+        cancelOngoingOperations()
+    }
+
+    /**
+     * Enhanced data class for navigation status
      */
     data class NavigationStatus(
         val isActive: Boolean,
@@ -255,7 +530,9 @@ class NavigationHelper(private val context: Context) {
         val durationMs: Long,
         val geofenceRadius: Float,
         val hasGeofence: Boolean,
-        val isGeofenceActive: Boolean
+        val isGeofenceActive: Boolean,
+        val navigationState: NavigationState,
+        val isOperationInProgress: Boolean
     ) {
         fun getDurationString(): String {
             if (durationMs <= 0) return "Not started"
@@ -270,10 +547,23 @@ class NavigationHelper(private val context: Context) {
             }
         }
 
+        fun getStateDescription(): String {
+            return when (navigationState) {
+                NavigationState.IDLE -> "Ready"
+                NavigationState.STARTING -> "Starting navigation..."
+                NavigationState.ACTIVE -> "Navigation active"
+                NavigationState.STOPPING -> "Stopping navigation..."
+                NavigationState.PAUSED -> "Navigation paused"
+                NavigationState.RESUMING -> "Resuming navigation..."
+                NavigationState.ERROR -> "Error occurred"
+            }
+        }
+
         override fun toString(): String {
             return "NavigationStatus(active=$isActive, destination=$destination, " +
                     "duration=${getDurationString()}, radius=${geofenceRadius}m, " +
-                    "hasGeofence=$hasGeofence, geofenceActive=$isGeofenceActive)"
+                    "hasGeofence=$hasGeofence, geofenceActive=$isGeofenceActive, " +
+                    "state=$navigationState, operationInProgress=$isOperationInProgress)"
         }
     }
 }
