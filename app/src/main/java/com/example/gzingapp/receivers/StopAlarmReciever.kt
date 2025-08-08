@@ -6,7 +6,11 @@ import android.content.Intent
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import com.example.gzingapp.services.NotificationService
+import com.example.gzingapp.services.NavigationHistoryService
 import com.example.gzingapp.ui.dashboard.DashboardActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class StopAlarmReceiver : BroadcastReceiver() {
 
@@ -33,6 +37,41 @@ class StopAlarmReceiver : BroadcastReceiver() {
                     
                     // Check if this was a destination arrival alarm
                     if (notificationId == GeofenceBroadcastReceiver.ARRIVAL_ALARM_ID) {
+                        // Complete navigation history for successful arrival
+                        val historyService = NavigationHistoryService(context)
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                val currentNavigation = historyService.getCurrentNavigation()
+                                currentNavigation?.let { history ->
+                                    val actualDuration = ((System.currentTimeMillis() - history.startTime) / 60000).toInt()
+                                    historyService.completeNavigation(history.id, actualDuration)
+                                    Log.d(TAG, "Navigation history marked as completed successfully")
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to complete navigation history", e)
+                            }
+                        }
+                        
+                        // Stop navigation when alarm is stopped
+                        try {
+                            val navigationHelper = com.example.gzingapp.services.NavigationHelper(context)
+                            navigationHelper.stopNavigation(
+                                onSuccess = {
+                                    Log.d(TAG, "Navigation stopped successfully after alarm dismissal")
+                                    
+                                    // Clear navigation notifications
+                                    val notificationService = NotificationService(context)
+                                    notificationService.clearNavigationNotifications()
+                                    notificationService.showNavigationStoppedNotification("Navigation completed - destination reached!")
+                                },
+                                onFailure = { error ->
+                                    Log.e(TAG, "Failed to stop navigation after alarm dismissal", error)
+                                }
+                            )
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error stopping navigation", e)
+                        }
+                        
                         // Clear navigation mode when alarm is stopped
                         with(prefs.edit()) {
                             putBoolean("navigation_active", false)

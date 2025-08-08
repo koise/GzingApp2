@@ -19,6 +19,7 @@ class GeofenceHelper(private val context: Context) {
     private var geofencePendingIntent: PendingIntent? = null
     private var currentGeofenceLocation: LatLng? = null
     private var isActiveGeofence = false
+    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     companion object {
         private const val TAG = "GeofenceHelper"
@@ -33,6 +34,11 @@ class GeofenceHelper(private val context: Context) {
         // Retry configuration
         private const val MAX_RETRY_ATTEMPTS = 3
         private const val RETRY_DELAY_MS = 2000L
+
+        // Shared preferences keys
+        private const val PREFS_NAME = "geofence_prefs"
+        private const val KEY_USER_INSIDE_GEOFENCE = "user_inside_geofence"
+        private const val KEY_VOICE_ANNOUNCEMENT_TRIGGERED = "voice_announcement_triggered"
 
         // Method to update geofence radius
         fun setGeofenceRadius(radiusInMeters: Float) {
@@ -106,7 +112,9 @@ class GeofenceHelper(private val context: Context) {
             return geofencePendingIntent!!
         }
 
-        val intent = Intent(context, GeofenceBroadcastReceiver::class.java)
+        val intent = Intent(context, GeofenceBroadcastReceiver::class.java).apply {
+            action = "com.example.gzingapp.GEOFENCE_ACTION"
+        }
         geofencePendingIntent = PendingIntent.getBroadcast(
             context,
             0,
@@ -121,6 +129,13 @@ class GeofenceHelper(private val context: Context) {
      * Add geofence around the pinned location with improved error handling and retry logic
      */
     fun addGeofence(latLng: LatLng, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
+        Log.d(TAG, "=== ADDING GEOFENCE ===")
+        Log.d(TAG, "Location: ${latLng.latitude}, ${latLng.longitude}")
+        Log.d(TAG, "Radius: ${GEOFENCE_RADIUS}m")
+        Log.d(TAG, "Expiration: ${GEOFENCE_EXPIRATION}ms")
+        Log.d(TAG, "Dwell Time: ${GEOFENCE_DWELL_TIME}ms")
+        Log.d(TAG, "✅ Starting geofence creation process...")
+        
         addGeofenceWithRetry(latLng, onSuccess, onFailure, 0)
     }
 
@@ -366,6 +381,10 @@ class GeofenceHelper(private val context: Context) {
         // Try to recreate pending intent to clear any stuck references
         geofencePendingIntent?.cancel()
         geofencePendingIntent = null
+        
+        // Reset user inside geofence state
+        setUserInsideGeofence(false)
+        setVoiceAnnouncementTriggered(false)
     }
 
     /**
@@ -389,6 +408,42 @@ class GeofenceHelper(private val context: Context) {
     fun setNavigationMode(isNavigating: Boolean) {
         isActiveGeofence = isNavigating
         Log.d(TAG, "Geofence navigation mode set to: $isNavigating")
+        
+        // Reset user inside geofence state when changing navigation mode
+        if (!isNavigating) {
+            setUserInsideGeofence(false)
+            setVoiceAnnouncementTriggered(false)
+        }
+    }
+    
+    /**
+     * Check if user is inside geofence
+     */
+    fun isUserInsideGeofence(): Boolean {
+        return prefs.getBoolean(KEY_USER_INSIDE_GEOFENCE, false)
+    }
+    
+    /**
+     * Set user inside geofence state
+     */
+    fun setUserInsideGeofence(isInside: Boolean) {
+        prefs.edit().putBoolean(KEY_USER_INSIDE_GEOFENCE, isInside).apply()
+        Log.d(TAG, "User inside geofence state set to: $isInside")
+    }
+    
+    /**
+     * Check if voice announcement has been triggered
+     */
+    fun isVoiceAnnouncementTriggered(): Boolean {
+        return prefs.getBoolean(KEY_VOICE_ANNOUNCEMENT_TRIGGERED, false)
+    }
+    
+    /**
+     * Set voice announcement triggered state
+     */
+    fun setVoiceAnnouncementTriggered(triggered: Boolean) {
+        prefs.edit().putBoolean(KEY_VOICE_ANNOUNCEMENT_TRIGGERED, triggered).apply()
+        Log.d(TAG, "Voice announcement triggered state set to: $triggered")
     }
 
     /**
@@ -400,7 +455,9 @@ class GeofenceHelper(private val context: Context) {
             radius = GEOFENCE_RADIUS,
             isActive = isActiveGeofence,
             hasGeofence = currentGeofenceLocation != null,
-            isGooglePlayServicesAvailable = isGooglePlayServicesAvailable()
+            isGooglePlayServicesAvailable = isGooglePlayServicesAvailable(),
+            isUserInside = isUserInsideGeofence(),
+            voiceTriggered = isVoiceAnnouncementTriggered()
         )
     }
 
@@ -439,10 +496,12 @@ class GeofenceHelper(private val context: Context) {
         val radius: Float,
         val isActive: Boolean,
         val hasGeofence: Boolean,
-        val isGooglePlayServicesAvailable: Boolean
+        val isGooglePlayServicesAvailable: Boolean,
+        val isUserInside: Boolean,
+        val voiceTriggered: Boolean
     ) {
         override fun toString(): String {
-            return "GeofenceStatus(location=$location, radius=${radius}m, active=$isActive, hasGeofence=$hasGeofence, playServicesOK=$isGooglePlayServicesAvailable)"
+            return "GeofenceStatus(location=$location, radius=${radius}m, active=$isActive, hasGeofence=$hasGeofence, playServicesOK=$isGooglePlayServicesAvailable, userInside=$isUserInside, voiceTriggered=$voiceTriggered)"
         }
     }
 }

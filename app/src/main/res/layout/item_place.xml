@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="8dp"
+    android:elevation="4dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="4dp"> Task :app:compileDebugKotlin FAILED
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/services/PlacesService.kt:393:30 Unresolved reference 'isOpenNow'.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesActivity.kt:21:17 Unresolved reference 'swiperefreshlayout'.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesActivity.kt:46:46 Unresolved reference 'SwipeRefreshLayout'.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesActivity.kt:96:30 Cannot infer type for this parameter. Please specify it explicitly.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesActivity.kt:96:30 Not enough information to infer type argument for 'T'.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesActivity.kt:155:28 Unresolved reference 'setOnRefreshListener'.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesActivity.kt:158:28 Unresolved reference 'setColorSchemeResources'.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesActivity.kt:206:28 Unresolved reference 'isRefreshing'.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesActivity.kt:221:36 Unresolved reference 'isRefreshing'.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesActivity.kt:239:40 Unresolved reference 'isRefreshing'.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesActivity.kt:253:40 Unresolved reference 'isRefreshing'.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesActivity.kt:267:28 Unresolved reference 'isRefreshing'.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesActivity.kt:274:40 Unresolved reference 'isRefreshing'.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesActivity.kt:286:40 Unresolved reference 'isRefreshing'.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesAdapter.kt:50:9 Argument type mismatch: actual type is 'R?', but 'K?' was expected.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesAdapter.kt:50:15 Unresolved reference 'getFormattedRating'.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesAdapter.kt:50:37 Cannot infer type for this parameter. Please specify it explicitly.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesAdapter.kt:50:43 Cannot infer type for this parameter. Please specify it explicitly.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesAdapter.kt:53:14 Argument type mismatch: actual type is 'kotlin.Unit', but 'K' was expected.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesAdapter.kt:58:9 Argument type mismatch: actual type is 'R?', but 'K?' was expected.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesAdapter.kt:58:15 Unresolved reference 'getFormattedDistance'.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesAdapter.kt:58:39 Cannot infer type for this parameter. Please specify it explicitly.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesAdapter.kt:58:45 Cannot infer type for this parameter. Please specify it explicitly.
+    e: file:///C:/xProjects/GzingApp4/app/src/main/java/com/example/gzingapp/ui/places/PlacesAdapter.kt:61:14 Argument type mismatch: actual type is 'kotlin.Unit', but 'K' was expected.
+
+
+    app:cardUseCompatPadding="true"
+    android:foreground="?android:attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="12dp">
+
+        <!-- Place Image -->
+        <ImageView
+            android:id="@+id/ivPlaceImage"
+            android:layout_width="0dp"
+            android:layout_height="120dp"
+            android:scaleType="centerCrop"
+            android:background="@color/light_gray"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            tools:src="@drawable/ic_places" />
+
+        <!-- Open Status Badge -->
+        <TextView
+            android:id="@+id/tvOpenStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/status_background"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="4dp"
+            android:text="Open"
+            android:textColor="@color/white"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="@id/ivPlaceImage"
+            app:layout_constraintTop_toTopOf="@id/ivPlaceImage"
+            tools:text="Open"
+            tools:visibility="visible" />
+
+        <!-- Place Name -->
+        <TextView
+            android:id="@+id/tvPlaceName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:text="Place Name"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/ivPlaceImage"
+            tools:text="Sample Restaurant" />
+
+        <!-- Place Category -->
+        <TextView
+            android:id="@+id/tvPlaceCategory"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Category"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvPlaceName"
+            tools:text="Restaurant" />
+
+        <!-- Location Icon and Text -->
+        <ImageView
+            android:id="@+id/ivLocationIcon"
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:layout_marginTop="8dp"
+            android:src="@drawable/ic_location"
+            android:tint="@color/text_secondary"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvPlaceCategory" />
+
+        <TextView
+            android:id="@+id/tvPlaceLocation"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Location"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            app:layout_constraintBottom_toBottomOf="@id/ivLocationIcon"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@id/ivLocationIcon"
+            app:layout_constraintTop_toTopOf="@id/ivLocationIcon"
+            tools:text="Antipolo City" />
+
+        <!-- Rating Section -->
+        <LinearLayout
+            android:id="@+id/llRatingSection"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvPlaceLocation">
+
+            <ImageView
+                android:id="@+id/ivStarIcon"
+                android:layout_width="12dp"
+                android:layout_height="12dp"
+                android:src="@drawable/ic_star"
+                android:tint="@color/star_color" />
+
+            <TextView
+                android:id="@+id/tvPlaceRating"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="2dp"
+                android:text="4.5"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                tools:text="4.5" />
+
+        </LinearLayout>
+
+        <!-- Distance Section -->
+        <LinearLayout
+            android:id="@+id/llDistanceSection"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            app:layout_constraintBottom_toBottomOf="@id/llRatingSection"
+            app:layout_constraintStart_toEndOf="@id/llRatingSection"
+            app:layout_constraintTop_toTopOf="@id/llRatingSection">
+
+            <ImageView
+                android:id="@+id/ivDistanceIcon"
+                android:layout_width="12dp"
+                android:layout_height="12dp"
+                android:src="@drawable/ic_distance"
+                android:tint="@color/text_secondary" />
+
+            <TextView
+                android:id="@+id/tvPlaceDistance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="2dp"
+                android:text="2.1 km"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                tools:text="2.1 km" />
+
+        </LinearLayout>
+
+        <!-- Divider Line -->
+        <View
+            android:id="@+id/divider"
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_marginTop="12dp"
+            android:background="@color/divider_color"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/llRatingSection" />
+
+        <!-- Action Button -->
+        <TextView
+            android:id="@+id/tvViewDetails"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:gravity="center"
+            android:padding="8dp"
+            android:text="View Details"
+            android:textColor="@color/primary_brown"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/divider" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</androidx.cardview.widget.CardView>

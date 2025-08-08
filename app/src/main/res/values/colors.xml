@@ -29,4 +29,10 @@
     <color name="warning">#FFA000</color>
 
     <color name="medium_brown">#8B4A2B</color>
+    <color name="bottom_nav_disabled">#60FFFFFF</color>
+    <color name="bottom_nav_text_disabled">#80FFFFFF</color>
+    <color name="light_gray">#F5F5F5</color>
+    <color name="divider_color">#E0E0E0</color>
+    <!-- Star rating color -->
+    <color name="star_color">#FFC107</color>
 </resources>

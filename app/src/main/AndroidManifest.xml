@@ -29,9 +29,20 @@
         android:theme="@style/Theme.GzingApp"
         tools:targetApi="34">
         <activity
+            android:name=".ui.places.PlacesActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.routes.RoutesActivity"
+            android:exported="false" />
+        <activity
             android:name=".ui.settings.SettingsActivity"
             android:exported="false" />
-        <!-- Google Maps API Key -->
+        <activity
+            android:name=".ui.profile.ProfileActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.history.HistoryActivity"
+            android:exported="false" /> <!-- Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyAWkbavPeHt9caL5PxClvF1Cg9KLYrVkPE" /> <!-- Login Activity (Launcher) -->

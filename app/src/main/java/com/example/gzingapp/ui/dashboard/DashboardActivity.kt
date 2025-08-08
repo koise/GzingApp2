@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.MenuItem
 import android.view.View
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.Button
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -38,9 +39,13 @@ import com.example.gzingapp.services.GeofenceHelper
 import com.example.gzingapp.services.LocationHelper
 import com.example.gzingapp.services.NotificationService
 import com.example.gzingapp.services.SessionManager
+import com.example.gzingapp.services.NavigationHistoryService
+import com.example.gzingapp.models.NavigationHistory
+import com.example.gzingapp.models.NavigationDestination
 import com.example.gzingapp.ui.auth.LoginActivity
 import com.example.gzingapp.ui.settings.SettingsActivity
 import com.example.gzingapp.services.NavigationHelper
+import com.example.gzingapp.receivers.GeofenceBroadcastReceiver
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -61,11 +66,15 @@ import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.android.material.navigation.NavigationView
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.example.gzingapp.ui.routes.RoutesActivity
+import com.example.gzingapp.ui.places.PlacesActivity
 
 class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener, OnMapReadyCallback {
 
     companion object {
         private const val TAG = "DashboardActivity"
+        private const val CARD_EXPANDED_KEY = "card_expanded"
     }
 
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
@@ -75,10 +84,17 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                     Toast.makeText(this, getString(R.string.drawer_locked_message), Toast.LENGTH_SHORT).show()
                     return false
                 }
-                Toast.makeText(this, "Account", Toast.LENGTH_SHORT).show()
+                
+                if (sessionManager.isAnonymous()) {
+                    // Redirect guest users to login for account access
+                    Toast.makeText(this, "Please sign in to access your account", Toast.LENGTH_LONG).show()
+                    val intent = Intent(this, com.example.gzingapp.ui.auth.LoginActivity::class.java)
+                    startActivity(intent)
+                } else {
+                    startActivity(Intent(this, com.example.gzingapp.ui.profile.ProfileActivity::class.java))
+                }
             }
             R.id.menu_settings -> {
-                // Check if navigation is active
                 if (isNavigating) {
                     Toast.makeText(this, getString(R.string.drawer_locked_message), Toast.LENGTH_SHORT).show()
                     return false
@@ -90,13 +106,26 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                     Toast.makeText(this, getString(R.string.drawer_locked_message), Toast.LENGTH_SHORT).show()
                     return false
                 }
-                Toast.makeText(this, "History", Toast.LENGTH_SHORT).show()
+                
+                if (sessionManager.isAnonymous()) {
+                    // Redirect guest users to login for history access
+                    Toast.makeText(this, "Please sign in to view your navigation history", Toast.LENGTH_LONG).show()
+                    val intent = Intent(this, com.example.gzingapp.ui.auth.LoginActivity::class.java)
+                    startActivity(intent)
+                } else {
+                    startActivity(Intent(this, com.example.gzingapp.ui.history.HistoryActivity::class.java))
+                }
             }
             R.id.menu_logout -> {
-                if (isNavigating) {
-                    showLogoutDialog()
+                // Only show logout option for non-guest users
+                if (!sessionManager.isAnonymous()) {
+                    if (isNavigating) {
+                        showLogoutDialog()
+                    } else {
+                        performLogout()
+                    }
                 } else {
-                    performLogout()
+                    Toast.makeText(this, "Already using guest mode", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -104,6 +133,7 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         return true
     }
 
+    private lateinit var bottomNavigation: BottomNavigationView
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var navigationView: NavigationView
     private lateinit var toolbar: Toolbar
@@ -115,6 +145,35 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     private lateinit var locationHelper: LocationHelper
     private lateinit var geofenceHelper: GeofenceHelper
     private lateinit var navigationHelper: NavigationHelper
+    private lateinit var navigationHistoryService: NavigationHistoryService
+
+    // Helper methods for navigation history
+    private fun calculateDistance(start: LatLng?, end: LatLng): Double {
+        if (start == null) return 0.0
+        val earthRadius = 6371.0 // Earth's radius in kilometers
+        val lat1Rad = Math.toRadians(start.latitude)
+        val lat2Rad = Math.toRadians(end.latitude)
+        val deltaLatRad = Math.toRadians(end.latitude - start.latitude)
+        val deltaLngRad = Math.toRadians(end.longitude - start.longitude)
+        
+        val a = Math.sin(deltaLatRad / 2) * Math.sin(deltaLatRad / 2) +
+                Math.cos(lat1Rad) * Math.cos(lat2Rad) *
+                Math.sin(deltaLngRad / 2) * Math.sin(deltaLngRad / 2)
+        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        
+        return earthRadius * c
+    }
+    
+    private fun calculateEstimatedTime(start: LatLng?, end: LatLng): Int {
+        val distance = calculateDistance(start, end)
+        // Estimate based on transport mode (walking ~5km/h, motorcycle ~30km/h, car ~25km/h in city)
+        val speed = when (selectedTransportMode) {
+            TransportMode.WALKING -> 5.0
+            TransportMode.MOTORCYCLE -> 30.0
+            TransportMode.CAR -> 25.0
+        }
+        return ((distance / speed) * 60).toInt() // Convert to minutes
+    }
 
     // Map and location related variables
     private lateinit var mMap: GoogleMap
@@ -148,10 +207,9 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     private lateinit var tvMotorcycleTime: TextView
     private lateinit var tvCarTime: TextView
 
-    // State variables
     private var selectedTransportMode: TransportMode = TransportMode.WALKING
+    private var currentNavigationHistory: NavigationHistory? = null
 
-    // Navigation state is now handled by NavigationHelper
     private val isNavigating: Boolean
         get() = navigationHelper.isNavigationActive()
 
@@ -174,9 +232,27 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     private lateinit var btnToggleNavigation: Button
     private lateinit var progressNavigation: ProgressBar
     private lateinit var navigationInstructions: View
+    
+    // Geofence distance views
+    private lateinit var geofenceDistanceInfo: LinearLayout
+    private lateinit var tvGeofenceStatus: TextView
+    private lateinit var tvGeofenceDistance: TextView
+
+    // Expandable card views
+    private lateinit var collapsedHeader: View
+    private lateinit var expandableContent: View
+    private lateinit var expandCollapseIcon: ImageView
+    private lateinit var btnQuickNavigation: Button
+    private lateinit var tvCurrentLocationSummary: TextView
+    private lateinit var navigationStatusCollapsed: View
+    private lateinit var tvNavigationStatusCollapsed: TextView
+    private lateinit var navigationPulseCollapsed: View
+
+    private var isCardExpanded = true
 
     // Animation objects for navigation status
     private var navigationStatusAnimation: ObjectAnimator? = null
+    private var navigationStatusCollapsedAnimation: ObjectAnimator? = null
 
     // Background location permission request
     private val backgroundLocationPermissionLauncher = registerForActivityResult(
@@ -196,7 +272,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         }
     }
 
-    // Temporary storage for navigation location during permission request
     private var pinnedLocationToNavigate: LatLng? = null
 
     // Location permission request
@@ -224,16 +299,12 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                 modalOverlay.visibility == View.VISIBLE -> {
                     hideModal()
                 }
-
                 drawerLayout.isDrawerOpen(GravityCompat.START) -> {
                     drawerLayout.closeDrawer(GravityCompat.START)
                 }
-
                 isNavigating -> {
-                    // Show confirmation dialog when navigating
                     showStopNavigationDialog()
                 }
-
                 else -> {
                     isEnabled = false
                     onBackPressedDispatcher.onBackPressed()
@@ -250,6 +321,7 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         setupUI()
         setupNavigationDrawer()
         setupLocationCard()
+        setupExpandableCard()
         setupModal()
         updateNavigationHeader()
         setupNotificationButtons()
@@ -257,19 +329,18 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         loadGeofenceSettings()
         checkGooglePlayServices()
 
-        // Register back press callback
+        isCardExpanded = savedInstanceState?.getBoolean(CARD_EXPANDED_KEY, false) ?: false
+        updateCardExpansionState(animate = false)
+
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
 
-        // Check if user is logged in
         if (!sessionManager.isLoggedIn()) {
             navigateToLogin()
         }
 
-        // Handle alarm stopped intent
         handleAlarmStoppedIntent()
-
-        // Check navigation state on startup
         checkNavigationState()
+        handlePlacePinIntent()
     }
 
     private fun initializeServices() {
@@ -279,28 +350,32 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         locationHelper = LocationHelper(this)
         geofenceHelper = GeofenceHelper(this)
-        navigationHelper = NavigationHelper(this) // Initialize NavigationHelper
+        navigationHelper = NavigationHelper(this)
+        navigationHistoryService = NavigationHistoryService(this)
     }
 
     private fun checkNavigationState() {
-        // Check if navigation was active when activity was recreated
+        // First check if we have navigation history data from intent
+        if (intent.getBooleanExtra("from_history", false)) {
+            handleNavigationFromHistory()
+            return
+        }
+        
+        // Otherwise check for active navigation
         if (navigationHelper.isNavigationActive()) {
             Log.d(TAG, "Navigation was active, restoring state")
 
-            // Get current destination
             val destination = navigationHelper.getCurrentDestination()
             if (destination != null) {
                 pinnedLocation = destination
 
-                // Restore navigation UI
                 updateNavigationUI()
                 updateDrawerState()
                 updateToolbarState()
                 addNavigationStateVisualFeedback()
 
-                // Restore map markers and geofence visualization
                 lifecycleScope.launch {
-                    delay(1000) // Wait for map to be ready
+                    delay(1000)
                     restoreNavigationVisualization(destination)
                 }
 
@@ -312,9 +387,208 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         }
     }
 
+    /**
+     * Handle navigation from history - displays a route from navigation history
+     */
+    private fun handleNavigationFromHistory() {
+        try {
+            val historyId = intent.getStringExtra("history_id")
+            val destLat = intent.getDoubleExtra("destination_lat", 0.0)
+            val destLng = intent.getDoubleExtra("destination_lng", 0.0)
+            val destName = intent.getStringExtra("destination_name") ?: "History Location"
+            
+            Log.d(TAG, "Handling navigation from history: $historyId, destination: $destName")
+            
+            if (destLat != 0.0 && destLng != 0.0) {
+                val location = LatLng(destLat, destLng)
+                
+                // Pin the location on map
+                if (::mMap.isInitialized) {
+                    pinLocationFromHistory(location, destName)
+                } else {
+                    // Store for later when map is ready
+                    pendingPinLocation = PendingPinData(location, destName, "", false)
+                }
+                
+                Toast.makeText(this, "Showing route to $destName", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Could not load route details", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error handling navigation from history", e)
+            Toast.makeText(this, "Error loading route details", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * Pin a location from History with visualization
+     */
+    private fun pinLocationFromHistory(location: LatLng, name: String) {
+        try {
+            Log.d(TAG, "Pinning location from history: $name at $location")
+
+            // Remove existing markers and polylines
+            currentMarker?.remove()
+            currentPolyline?.remove()
+            geofenceCircle?.remove()
+
+            // Add marker with place name
+            val title = "$name (from history)"
+            currentMarker = mMap.addMarker(
+                MarkerOptions()
+                    .position(location)
+                    .title(title)
+            )
+
+            // Set pinned location
+            pinnedLocation = location
+
+            // Move camera to the location
+            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(location, 16f))
+
+            // Update pinned location info in the UI
+            updatePinnedLocationInfo(location)
+
+            // Draw route if current location is available
+            currentLocation?.let { current ->
+                drawRealRoute(current, location, selectedTransportMode)
+            }
+
+            Log.d(TAG, "Successfully pinned location from history: $name")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error pinning location from history", e)
+            Toast.makeText(this, "Error showing location: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(CARD_EXPANDED_KEY, isCardExpanded)
+    }
+
+    private fun setupExpandableCard() {
+        val locationCard = findViewById<View>(R.id.locationCardInclude)
+
+        collapsedHeader = locationCard.findViewById(R.id.collapsedHeader)
+        expandableContent = locationCard.findViewById(R.id.expandableContent)
+        expandCollapseIcon = locationCard.findViewById(R.id.expandCollapseIcon)
+
+        btnQuickNavigation = locationCard.findViewById(R.id.btnQuickNavigation)
+        tvCurrentLocationSummary = locationCard.findViewById(R.id.tvCurrentLocationSummary)
+        navigationStatusCollapsed = locationCard.findViewById(R.id.navigationStatusCollapsed)
+        tvNavigationStatusCollapsed = locationCard.findViewById(R.id.tvNavigationStatusCollapsed)
+        navigationPulseCollapsed = locationCard.findViewById(R.id.navigationPulseCollapsed)
+
+        collapsedHeader.setOnClickListener {
+            toggleCardExpansion()
+        }
+
+        btnQuickNavigation.setOnClickListener {
+            handleQuickNavigation()
+        }
+
+        tvCurrentLocationSummary.text = getString(R.string.calculating)
+        updateQuickNavigationButton()
+    }
+
+    private fun toggleCardExpansion() {
+        isCardExpanded = !isCardExpanded
+        updateCardExpansionState(animate = true)
+    }
+
+    private fun updateCardExpansionState(animate: Boolean = true) {
+        if (animate) {
+            animateCardExpansion(isCardExpanded)
+        } else {
+            expandableContent.visibility = if (isCardExpanded) View.VISIBLE else View.GONE
+            expandCollapseIcon.rotation = if (isCardExpanded) 180f else 0f
+        }
+    }
+
+    private fun animateCardExpansion(expand: Boolean) {
+        val targetRotation = if (expand) 180f else 0f
+        val iconAnimator = ObjectAnimator.ofFloat(expandCollapseIcon, "rotation", targetRotation)
+        iconAnimator.duration = 300
+        iconAnimator.interpolator = AccelerateDecelerateInterpolator()
+
+        if (expand) {
+            expandableContent.visibility = View.VISIBLE
+            expandableContent.alpha = 0f
+
+            val alphaAnimator = ObjectAnimator.ofFloat(expandableContent, "alpha", 0f, 1f)
+            alphaAnimator.duration = 200
+            alphaAnimator.startDelay = 100
+
+            val animatorSet = AnimatorSet()
+            animatorSet.playTogether(iconAnimator, alphaAnimator)
+            animatorSet.start()
+        } else {
+            val alphaAnimator = ObjectAnimator.ofFloat(expandableContent, "alpha", 1f, 0f)
+            alphaAnimator.duration = 200
+
+            alphaAnimator.addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    expandableContent.visibility = View.GONE
+                }
+            })
+
+            val animatorSet = AnimatorSet()
+            animatorSet.playTogether(iconAnimator, alphaAnimator)
+            animatorSet.start()
+        }
+    }
+
+    private fun handleQuickNavigation() {
+        if (pinnedLocation == null) {
+            Toast.makeText(this, "Please pin a location first", Toast.LENGTH_SHORT).show()
+            if (!isCardExpanded) {
+                isCardExpanded = true
+                updateCardExpansionState(animate = true)
+            }
+            return
+        }
+
+        if (isNavigating) {
+            stopNavigation()
+        } else {
+            startNavigation()
+        }
+    }
+
+    private fun updateQuickNavigationButton() {
+        if (isNavigating) {
+            btnQuickNavigation.text = getString(R.string.stop_navigation)
+            btnQuickNavigation.setBackgroundColor(ContextCompat.getColor(this, R.color.navigation_error))
+        } else {
+            btnQuickNavigation.text = getString(R.string.start_navigation)
+            btnQuickNavigation.setBackgroundColor(ContextCompat.getColor(this, R.color.primary_brown))
+        }
+
+        btnQuickNavigation.isEnabled = pinnedLocation != null || isNavigating
+        btnQuickNavigation.alpha = if (btnQuickNavigation.isEnabled) 1.0f else 0.6f
+    }
+
+    private fun updateCollapsedNavigationStatus() {
+        if (isNavigating) {
+            navigationStatusCollapsed.visibility = View.VISIBLE
+            tvNavigationStatusCollapsed.text = getString(R.string.navigation_active)
+
+            navigationStatusCollapsedAnimation?.cancel()
+            navigationStatusCollapsedAnimation = ObjectAnimator.ofFloat(navigationPulseCollapsed, "alpha", 1f, 0.3f, 1f)
+            navigationStatusCollapsedAnimation?.apply {
+                duration = 1500
+                repeatCount = ObjectAnimator.INFINITE
+                start()
+            }
+        } else {
+            navigationStatusCollapsed.visibility = View.GONE
+            navigationStatusCollapsedAnimation?.cancel()
+        }
+    }
+
     private fun restoreNavigationVisualization(destination: LatLng) {
         if (::mMap.isInitialized) {
-            // Add marker
             currentMarker?.remove()
             currentMarker = mMap.addMarker(
                 MarkerOptions()
@@ -322,14 +596,10 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                     .title("Navigation Destination")
             )
 
-            // Add geofence visualization
             val radius = GeofenceHelper.getGeofenceRadius()
             addGeofenceVisualization(destination, radius)
-
-            // Update pinned location info
             updatePinnedLocationInfo(destination)
 
-            // Draw route if current location is available
             currentLocation?.let { current ->
                 drawRealRoute(current, destination, selectedTransportMode)
             }
@@ -344,14 +614,12 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
             ConnectionResult.SUCCESS -> {
                 Log.d(TAG, "Google Play Services is available and up to date")
             }
-
             ConnectionResult.SERVICE_VERSION_UPDATE_REQUIRED -> {
                 Log.w(TAG, "Google Play Services needs to be updated")
                 if (googleApiAvailability.isUserResolvableError(resultCode)) {
                     googleApiAvailability.getErrorDialog(this, resultCode, 1001)?.show()
                 }
             }
-
             ConnectionResult.SERVICE_MISSING -> {
                 Log.e(TAG, "Google Play Services is missing")
                 Toast.makeText(
@@ -360,7 +628,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                     Toast.LENGTH_LONG
                 ).show()
             }
-
             else -> {
                 Log.e(TAG, "Google Play Services error: $resultCode")
                 if (googleApiAvailability.isUserResolvableError(resultCode)) {
@@ -375,9 +642,46 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         navigationView = findViewById(R.id.navigationView)
         toolbar = findViewById(R.id.toolbar)
 
-        // Set toolbar as ActionBar
+        setupBottomNavigation()
         setSupportActionBar(toolbar)
     }
+
+    private fun setupBottomNavigation() {
+        bottomNavigation = findViewById(R.id.bottomNavigation)
+        bottomNavigation.selectedItemId = R.id.nav_dashboard
+
+        bottomNavigation.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_dashboard -> {
+                    true
+                }
+                R.id.nav_routes -> {
+                    if (isNavigating) {
+                        Toast.makeText(this, getString(R.string.drawer_locked_message), Toast.LENGTH_SHORT).show()
+                        false
+                    } else {
+                        startActivity(Intent(this, RoutesActivity::class.java))
+                        overridePendingTransition(0, 0)
+                        finish()
+                        true
+                    }
+                }
+                R.id.nav_places -> {
+                    if (isNavigating) {
+                        Toast.makeText(this, getString(R.string.drawer_locked_message), Toast.LENGTH_SHORT).show()
+                        false
+                    } else {
+                        startActivity(Intent(this, PlacesActivity::class.java))
+                        overridePendingTransition(0, 0)
+                        finish()
+                        true
+                    }
+                }
+                else -> false
+            }
+        }
+    }
+
     private fun setupNavigationDrawer() {
         toggle = ActionBarDrawerToggle(
             this,
@@ -390,10 +694,18 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         toggle.syncState()
 
         navigationView.setNavigationItemSelectedListener(this)
+        
+        // Hide logout option for guest users
+        updateNavigationMenuForGuest()
+    }
+    
+    private fun updateNavigationMenuForGuest() {
+        val menu = navigationView.menu
+        val logoutItem = menu.findItem(R.id.menu_logout)
+        logoutItem?.isVisible = !sessionManager.isAnonymous()
     }
 
     private fun setupModal() {
-        // Modal views
         modalOverlay = findViewById(R.id.modal_overlay)
         modalCard = findViewById(R.id.modal_card)
         btnCloseModal = findViewById(R.id.btn_close_modal)
@@ -402,12 +714,10 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         tvNavigationText = findViewById(R.id.tv_navigation_text)
         ivNavigationIcon = findViewById(R.id.iv_navigation_icon)
 
-        // Modal location info views
         tvModalLocationAddress = findViewById(R.id.tv_location_address)
         tvModalLocationDistance = findViewById(R.id.tv_location_distance)
         tvModalTrafficCondition = findViewById(R.id.tv_traffic_condition)
 
-        // Transportation views
         transportWalking = findViewById(R.id.transport_walking)
         transportMotorcycle = findViewById(R.id.transport_motorcycle)
         transportCar = findViewById(R.id.transport_car)
@@ -420,12 +730,10 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     }
 
     private fun setupModalClickListeners() {
-        // Modal close buttons
         modalOverlay.setOnClickListener { hideModal() }
         btnCloseModal.setOnClickListener { hideModal() }
         btnCancel.setOnClickListener { hideModal() }
 
-        // Transportation mode selection
         transportWalking.setOnClickListener {
             updateTransportSelection(TransportMode.WALKING)
             updateRouteForSelectedTransport()
@@ -439,7 +747,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
             updateRouteForSelectedTransport()
         }
 
-        // Navigation button
         btnStartNavigation.setOnClickListener {
             if (isNavigating) {
                 stopNavigation()
@@ -452,7 +759,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     private fun showModal() {
         modalOverlay.visibility = View.VISIBLE
 
-        // Animate modal entrance
         val translateY = ObjectAnimator.ofFloat(modalCard, "translationY", 100f, 0f)
         val alpha = ObjectAnimator.ofFloat(modalCard, "alpha", 0f, 1f)
 
@@ -464,7 +770,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     }
 
     private fun hideModal() {
-        // Animate modal exit
         val translateY = ObjectAnimator.ofFloat(modalCard, "translationY", 0f, 100f)
         val alpha = ObjectAnimator.ofFloat(modalCard, "alpha", 1f, 0f)
 
@@ -483,36 +788,89 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     }
 
     private fun resetNavigationState() {
-        // Reset transport selection to default
         selectedTransportMode = TransportMode.WALKING
         updateTransportSelection(TransportMode.WALKING)
-
-        // Reset navigation button state
         updateNavigationButton()
-
-        // Clear any loading states
         progressNavigation.visibility = View.GONE
         btnToggleNavigation.isEnabled = true
-
-        // Clear temp storage
         pinnedLocationToNavigate = null
+        
+        // Only clear visualization if not navigating
+        if (!isNavigating) {
+            clearMapVisualization()
+        }
+    }
+    
+    private fun clearMapVisualization() {
+        Log.d(TAG, "Clearing map visualization (markers, routes, geofence)")
+        
+        // Remove visual elements from map
+        currentMarker?.remove()
+        currentMarker = null
+        
+        currentPolyline?.remove()
+        currentPolyline = null
+        
+        geofenceCircle?.remove()
+        geofenceCircle = null
+        
+        // Remove actual geofence
+        geofenceHelper.removeGeofence(
+            onSuccess = { 
+                Log.d(TAG, "Geofence removed successfully when closing modal")
+            },
+            onFailure = { error ->
+                Log.w(TAG, "Failed to remove geofence when closing modal", error)
+            }
+        )
+        
+        // Reset pinned location
+        pinnedLocation = null
+        
+        // Update UI to reflect no pinned location
+        pinnedLocationSection.visibility = View.GONE
+        pinnedLocationDivider.visibility = View.GONE
+        tvNoPinMessage.visibility = View.VISIBLE
+        routeInfoSection.visibility = View.GONE
+    }
+    
+    /**
+     * Check if location is within Marikina/Antipolo service area
+     */
+    private fun isLocationWithinServiceArea(location: LatLng): Boolean {
+        // Service area bounds for Marikina/Antipolo
+        val minLat = 14.5500 // South boundary
+        val maxLat = 14.6500 // North boundary  
+        val minLng = 121.1000 // West boundary
+        val maxLng = 121.2500 // East boundary
+        
+        return location.latitude in minLat..maxLat &&
+                location.longitude in minLng..maxLng
+    }
+    
+    /**
+     * Find nearest valid location (Marikina or Antipolo center)
+     */
+    private fun getNearestValidLocation(location: LatLng): String {
+        val antipoloCenter = LatLng(14.5995, 121.1817)
+        val marikinaCenter = LatLng(14.6507, 121.1029)
+        
+        val distanceToAntipolo = locationHelper.calculateDistance(location, antipoloCenter)
+        val distanceToMarikina = locationHelper.calculateDistance(location, marikinaCenter)
+        
+        return if (distanceToAntipolo < distanceToMarikina) "antipolo" else "marikina"
     }
 
-    // Updated navigation methods using NavigationHelper
     private fun startNavigation() {
         pinnedLocation?.let { location ->
             Log.d(TAG, "Starting navigation to: $location")
 
-            // Show loading state
             progressNavigation.visibility = View.VISIBLE
             btnToggleNavigation.isEnabled = false
             tvNavigationText.text = "Starting Navigation..."
             tvNavigationText.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
 
-            // Store location for permission callback
             pinnedLocationToNavigate = location
-
-            // Check background location permission first
             checkAndRequestBackgroundLocationPermission(location)
 
         } ?: run {
@@ -544,79 +902,126 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     }
 
     private fun startNavigationInternal(destination: LatLng) {
-        navigationHelper.startNavigation(
-            destination = destination,
-            onSuccess = {
-                Log.d(TAG, "Navigation started successfully!")
+        // Get destination address for notifications
+        lifecycleScope.launch {
+            val destinationAddress = try {
+                locationHelper.getAddressFromLocation(destination)
+            } catch (e: Exception) {
+                "Selected location"
+            }
 
-                // Update UI state
-                runOnUiThread {
-                    hideModal()
-                    progressNavigation.visibility = View.GONE
-                    btnToggleNavigation.isEnabled = true
+            // Start navigation history tracking
+            try {
+                val destinations = listOf(
+                    NavigationDestination(
+                        name = destinationAddress,
+                        address = destinationAddress,
+                        latLng = destination,
+                        order = 0
+                    )
+                )
+                
+                val userId = if (!sessionManager.isAnonymous()) {
+                    sessionManager.getCurrentUser()?.id
+                } else null
+                
+                currentNavigationHistory = navigationHistoryService.startNavigation(
+                    routeDescription = "Navigation to $destinationAddress",
+                    startLocation = currentLocation,
+                    destinations = destinations,
+                    totalDistance = calculateDistance(currentLocation, destination),
+                    estimatedDuration = calculateEstimatedTime(currentLocation, destination),
+                    userId = userId
+                )
+                
+                Log.d(TAG, "Navigation history tracking started: ${currentNavigationHistory?.id}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start navigation history tracking", e)
+            }
 
-                    // Update navigation UI
-                    updateNavigationUI()
-                    updateDrawerState()
-                    updateToolbarState()
-                    addNavigationStateVisualFeedback()
+            // Show navigation started notification
+            notificationService.showNavigationStartedNotification(destinationAddress)
 
-                    // Add visual feedback on map
-                    addGeofenceVisualization(destination, GeofenceHelper.getGeofenceRadius())
+            navigationHelper.startNavigation(
+                destination = destination,
+                onSuccess = {
+                    Log.d(TAG, "Navigation started successfully!")
 
-                    Toast.makeText(
-                        this@DashboardActivity,
-                        "Navigation started! You'll get an alarm when you arrive.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    runOnUiThread {
+                        hideModal()
+                        progressNavigation.visibility = View.GONE
+                        btnToggleNavigation.isEnabled = true
 
-                    Log.d(TAG, "Navigation UI updated successfully")
-                }
-            },
-            onFailure = { error ->
-                Log.e(TAG, "Failed to start navigation", error)
+                        updateNavigationUI()
+                        updateDrawerState()
+                        updateToolbarState()
+                        updateMapInteraction() // Disable pinning during navigation
+                        addNavigationStateVisualFeedback()
 
-                runOnUiThread {
-                    progressNavigation.visibility = View.GONE
-                    btnToggleNavigation.isEnabled = true
-                    updateNavigationButton()
+                        addGeofenceVisualization(destination, GeofenceHelper.getGeofenceRadius())
 
-                    // Determine appropriate fallback based on error
-                    val errorMessage = when {
-                        error.message?.contains("Google Play Services") == true -> {
-                            "Google Play Services issue. Using fallback navigation."
-                        }
-                        error.message?.contains("Location permission") == true -> {
-                            "Background location limited. Using basic navigation mode."
-                        }
-                        error.message?.contains("temporarily unavailable") == true -> {
-                            "Location services unavailable. Using fallback navigation."
-                        }
-                        else -> {
-                            "Geofence unavailable. Using alternative navigation."
+                        // Show ongoing navigation notification with enhanced alarm system
+                        notificationService.showNavigationOngoingNotification(destinationAddress)
+
+                        Toast.makeText(
+                            this@DashboardActivity,
+                            "Navigation started! Enhanced alarms enabled for arrival.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+
+                        Log.d(TAG, "Navigation UI updated successfully")
+                    }
+                },
+                onFailure = { error ->
+                    Log.e(TAG, "Failed to start navigation", error)
+
+                    // Mark navigation as failed in history
+                    currentNavigationHistory?.let { history ->
+                        lifecycleScope.launch {
+                            try {
+                                navigationHistoryService.failNavigation(history.id)
+                                currentNavigationHistory = null
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to update navigation history on failure", e)
+                            }
                         }
                     }
 
-                    Toast.makeText(this@DashboardActivity, errorMessage, Toast.LENGTH_LONG).show()
+                    runOnUiThread {
+                        progressNavigation.visibility = View.GONE
+                        btnToggleNavigation.isEnabled = true
+                        updateNavigationButton()
 
-                    // Try fallback navigation
-                    startNavigationWithoutGeofence(destination)
+                        val errorMessage = when {
+                            error.message?.contains("Google Play Services") == true -> {
+                                "Google Play Services issue. Using fallback navigation."
+                            }
+                            error.message?.contains("Location permission") == true -> {
+                                "Background location limited. Using basic navigation mode."
+                            }
+                            error.message?.contains("temporarily unavailable") == true -> {
+                                "Location services unavailable. Using fallback navigation."
+                            }
+                            else -> {
+                                "Geofence unavailable. Using alternative navigation."
+                            }
+                        }
+
+                        Toast.makeText(this@DashboardActivity, errorMessage, Toast.LENGTH_LONG).show()
+                        startNavigationWithoutGeofence(destination)
+                    }
                 }
-            }
-        )
+            )
+        }
     }
 
     private fun startNavigationWithoutGeofence(destination: LatLng) {
         Log.d(TAG, "Starting fallback navigation without geofence")
 
-        // For now, just set navigation state without geofence
-        // You could implement location-based monitoring here as an alternative
-
         hideModal()
         progressNavigation.visibility = View.GONE
         btnToggleNavigation.isEnabled = true
 
-        // Manual navigation state management for fallback
         updateNavigationUI()
         updateDrawerState()
         updateToolbarState()
@@ -638,18 +1043,35 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
             onSuccess = {
                 Log.d(TAG, "Navigation stopped successfully")
 
+                // Update navigation history as cancelled
+                currentNavigationHistory?.let { history ->
+                    lifecycleScope.launch {
+                        try {
+                            val actualDuration = ((System.currentTimeMillis() - history.startTime) / 60000).toInt()
+                            navigationHistoryService.cancelNavigation(history.id, actualDuration)
+                            currentNavigationHistory = null
+                            Log.d(TAG, "Navigation history marked as cancelled")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to update navigation history on cancellation", e)
+                        }
+                    }
+                }
+
                 runOnUiThread {
                     progressNavigation.visibility = View.GONE
                     btnToggleNavigation.isEnabled = true
 
-                    // Update UI state
                     updateNavigationUI()
                     updateDrawerState()
                     updateToolbarState()
+                    updateMapInteraction() // Re-enable pinning after navigation stops
 
-                    // Remove visual feedback
                     navigationStatusAnimation?.cancel()
                     geofenceCircle?.remove()
+
+                    // Clear navigation notifications and show cancelled notification
+                    notificationService.clearNavigationNotifications()
+                    notificationService.showNavigationCancelledNotification("Navigation cancelled by user")
 
                     Toast.makeText(
                         this@DashboardActivity,
@@ -665,13 +1087,17 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                     progressNavigation.visibility = View.GONE
                     btnToggleNavigation.isEnabled = true
 
-                    // Still update UI since navigation is considered stopped
                     updateNavigationUI()
                     updateDrawerState()
                     updateToolbarState()
+                    updateMapInteraction() // Re-enable pinning after navigation stops
 
                     navigationStatusAnimation?.cancel()
                     geofenceCircle?.remove()
+
+                    // Clear navigation notifications and show cancelled notification
+                    notificationService.clearNavigationNotifications()
+                    notificationService.showNavigationCancelledNotification("Navigation cancelled due to error")
 
                     Toast.makeText(
                         this@DashboardActivity,
@@ -697,26 +1123,39 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     private fun resumeNavigation() {
         Log.d(TAG, "Resuming navigation")
 
-        if (navigationHelper.resumeNavigation()) {
-            updateNavigationUI()
-            updateDrawerState()
-            updateToolbarState()
-            addNavigationStateVisualFeedback()
+        // Use regular function call instead of suspend
+        val resumed = navigationHelper.resumeNavigation { isLoading ->
+            runOnUiThread {
+                if (isLoading) {
+                    progressNavigation.visibility = View.VISIBLE
+                    btnToggleNavigation.isEnabled = false
+                } else {
+                    progressNavigation.visibility = View.GONE
+                    btnToggleNavigation.isEnabled = true
+                }
+            }
+        }
 
-            Toast.makeText(this, "Navigation resumed", Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(this, "Cannot resume navigation - no destination set", Toast.LENGTH_SHORT).show()
+        runOnUiThread {
+            if (resumed) {
+                updateNavigationUI()
+                updateDrawerState()
+                updateToolbarState()
+                addNavigationStateVisualFeedback()
+
+                Toast.makeText(this@DashboardActivity, "Navigation resumed", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this@DashboardActivity, "Cannot resume navigation - no destination set", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
     private fun loadModalLocationData(latLng: LatLng) {
         lifecycleScope.launch {
             try {
-                // Load address
                 val address = locationHelper.getAddressFromLocation(latLng)
                 tvModalLocationAddress.text = address
 
-                // Calculate distance if user location is available
                 currentLocation?.let { userLoc ->
                     val distance = locationHelper.calculateDistance(userLoc, latLng)
                     tvModalLocationDistance.text =
@@ -725,12 +1164,10 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                     tvModalLocationDistance.text = "Distance: Calculating..."
                 }
 
-                // Load traffic condition
                 val trafficCondition = locationHelper.estimateTrafficCondition()
                 tvModalTrafficCondition.text = trafficCondition
                 updateModalTrafficColor(trafficCondition)
 
-                // Calculate travel times for all modes
                 calculateRealModalTravelTimes()
 
             } catch (e: Exception) {
@@ -746,11 +1183,8 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
             currentLocation?.let { userLoc ->
                 lifecycleScope.launch {
                     try {
-                        // Get travel times for all transport modes
-                        val travelTimes =
-                            locationHelper.getTravelTimesForAllModes(userLoc, location)
+                        val travelTimes = locationHelper.getTravelTimesForAllModes(userLoc, location)
 
-                        // Update UI with real times or fallback to estimates
                         tvWalkingTime.text = travelTimes["walking"] ?: run {
                             val distance = locationHelper.calculateDistance(userLoc, location)
                             val time = locationHelper.estimateTravelTime(distance * 2.5, "Light")
@@ -774,7 +1208,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
 
                     } catch (e: Exception) {
                         Log.e(TAG, "Error calculating real travel times", e)
-                        // Fallback to estimated times
                         calculateEstimatedTravelTimes()
                     }
                 }
@@ -788,10 +1221,8 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                 val distance = locationHelper.calculateDistance(userLoc, location)
                 val trafficCondition = tvModalTrafficCondition.text.toString()
 
-                // Calculate times for each transport mode with different multipliers
                 val walkingTime = locationHelper.estimateTravelTime(distance * 2.5, "Light")
-                val motorcycleTime =
-                    locationHelper.estimateTravelTime(distance * 0.8, trafficCondition)
+                val motorcycleTime = locationHelper.estimateTravelTime(distance * 0.8, trafficCondition)
                 val carTime = locationHelper.estimateTravelTime(distance, trafficCondition)
 
                 tvWalkingTime.text = locationHelper.formatTravelTime(walkingTime)
@@ -812,12 +1243,10 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     }
 
     private fun updateTransportSelection(mode: TransportMode) {
-        // Reset all selections
         transportWalking.isSelected = false
         transportMotorcycle.isSelected = false
         transportCar.isSelected = false
 
-        // Set selected mode
         selectedTransportMode = mode
         when (mode) {
             TransportMode.WALKING -> transportWalking.isSelected = true
@@ -835,10 +1264,8 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     }
 
     private fun updateNavigationUI() {
-        // Stop any existing animation
         navigationStatusAnimation?.cancel()
 
-        // Update location card navigation status
         if (isNavigating) {
             navigationStatusSection.visibility = View.VISIBLE
             navigationInstructions.visibility = View.VISIBLE
@@ -846,21 +1273,19 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
             tvNavigationStatus.setTextColor(ContextCompat.getColor(this, R.color.navigation_active))
             btnToggleNavigation.text = getString(R.string.stop_navigation)
             btnToggleNavigation.setBackgroundColor(
-                ContextCompat.getColor(
-                    this,
-                    R.color.navigation_error
-                )
+                ContextCompat.getColor(this, R.color.navigation_error)
             )
             tvNoPinMessage.visibility = View.GONE
+            
+            // Update geofence distance information
+            updateGeofenceDistanceInfo()
         } else {
             navigationStatusSection.visibility = View.GONE
             navigationInstructions.visibility = View.GONE
+            geofenceDistanceInfo.visibility = View.GONE
             btnToggleNavigation.text = getString(R.string.start_navigation)
             btnToggleNavigation.setBackgroundColor(
-                ContextCompat.getColor(
-                    this,
-                    R.color.primary_brown
-                )
+                ContextCompat.getColor(this, R.color.primary_brown)
             )
 
             if (pinnedLocation == null) {
@@ -868,8 +1293,9 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
             }
         }
 
-        // Update modal navigation button
         updateNavigationButton()
+        updateQuickNavigationButton()
+        updateCollapsedNavigationStatus()
     }
 
     private fun updateNavigationButton() {
@@ -887,10 +1313,8 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     }
 
     private fun updateMapInteraction() {
-        // Enable/disable map click based on navigation state
         if (::mMap.isInitialized) {
             if (isNavigating) {
-                // Disable map clicking when navigating
                 mMap.setOnMapClickListener {
                     Toast.makeText(
                         this,
@@ -899,28 +1323,43 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                     ).show()
                 }
 
-                // Disable map controls for cleaner navigation experience
                 mMap.uiSettings.isZoomControlsEnabled = false
                 mMap.uiSettings.isCompassEnabled = false
                 mMap.uiSettings.isMapToolbarEnabled = false
 
             } else {
-                // Enable normal map interaction
                 mMap.setOnMapClickListener { latLng ->
-                    addOrUpdateMarkerWithGeofence(latLng)
-                    updatePinnedLocationInfo(latLng)
+                    // Check if location is within Marikina/Antipolo service area
+                    if (isLocationWithinServiceArea(latLng)) {
+                        addOrUpdateMarkerWithGeofence(latLng)
+                        updatePinnedLocationInfo(latLng)
 
-                    currentLocation?.let { current ->
-                        drawRealRoute(current, latLng, selectedTransportMode)
+                        currentLocation?.let { current ->
+                            drawRealRoute(current, latLng, selectedTransportMode)
+                        }
+
+                        pinnedLocation = latLng
+                        showModal()
+                        loadModalLocationData(latLng)
+                    } else {
+                        // Show toast message for invalid location
+                        Toast.makeText(
+                            this@DashboardActivity,
+                            "You can only pin locations within Marikina and Antipolo area",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        
+                        // Optionally, show the nearest valid location
+                        val nearestValidLocation = getNearestValidLocation(latLng)
+                        val message = "Nearest supported area: ${if (nearestValidLocation == "marikina") "Marikina" else "Antipolo"}"
+                        
+                        // Show as a snackbar for better UX
+                        findViewById<View>(android.R.id.content)?.let { view ->
+                            com.google.android.material.snackbar.Snackbar.make(view, message, com.google.android.material.snackbar.Snackbar.LENGTH_SHORT).show()
+                        }
                     }
-
-                    // Show modal with real route data
-                    pinnedLocation = latLng
-                    showModal()
-                    loadModalLocationData(latLng)
                 }
 
-                // Re-enable map controls
                 mMap.uiSettings.isZoomControlsEnabled = true
                 mMap.uiSettings.isCompassEnabled = true
                 mMap.uiSettings.isMapToolbarEnabled = true
@@ -930,52 +1369,57 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
 
     private fun updateDrawerState() {
         if (isNavigating) {
-            // Disable drawer opening during navigation
             drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
             toggle.isDrawerIndicatorEnabled = false
 
-            // Change toolbar title to show navigation status
-            supportActionBar?.title = "Navigating..."
+            updateBottomNavigationState(false)
 
-            // Optionally disable the hamburger menu icon
+            supportActionBar?.title = "Navigating..."
             supportActionBar?.setDisplayHomeAsUpEnabled(false)
 
         } else {
-            // Re-enable drawer
             drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
             toggle.isDrawerIndicatorEnabled = true
 
-            // Restore normal title
-            supportActionBar?.title = getString(R.string.app_name)
+            updateBottomNavigationState(true)
 
-            // Re-enable hamburger menu
+            supportActionBar?.title = getString(R.string.app_name)
             supportActionBar?.setDisplayHomeAsUpEnabled(false)
             toggle.syncState()
         }
     }
 
+    private fun updateBottomNavigationState(enabled: Boolean) {
+        if (::bottomNavigation.isInitialized) {
+            val menu = bottomNavigation.menu
+            for (i in 0 until menu.size()) {
+                menu.getItem(i).isEnabled = enabled
+            }
+
+            if (enabled) {
+                bottomNavigation.alpha = 1.0f
+            } else {
+                bottomNavigation.alpha = 0.6f
+            }
+        }
+    }
+
     private fun updateToolbarState() {
         if (isNavigating) {
-            // Change toolbar color to indicate navigation mode
             toolbar.setBackgroundColor(ContextCompat.getColor(this, R.color.navigation_active))
-
-            // Add navigation indicator to toolbar
+            bottomNavigation.setBackgroundColor(ContextCompat.getColor(this, R.color.navigation_active))
             supportActionBar?.subtitle = getString(R.string.navigation_active)
 
         } else {
-            // Restore normal toolbar color
             toolbar.setBackgroundColor(ContextCompat.getColor(this, R.color.primary_brown))
-
-            // Remove subtitle
+            bottomNavigation.setBackgroundColor(ContextCompat.getColor(this, R.color.primary_brown))
             supportActionBar?.subtitle = null
         }
     }
 
     private fun addNavigationStateVisualFeedback() {
         if (isNavigating && ::tvNavigationStatus.isInitialized) {
-            // Add a subtle pulse animation to the navigation status
-            navigationStatusAnimation =
-                ObjectAnimator.ofFloat(tvNavigationStatus, "alpha", 1f, 0.5f, 1f)
+            navigationStatusAnimation = ObjectAnimator.ofFloat(tvNavigationStatus, "alpha", 1f, 0.5f, 1f)
             navigationStatusAnimation?.apply {
                 duration = 1500
                 repeatCount = ObjectAnimator.INFINITE
@@ -985,12 +1429,11 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     }
 
     private fun showStopNavigationDialog() {
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        AlertDialog.Builder(this)
             .setTitle("Stop Navigation")
             .setMessage(getString(R.string.navigation_confirm_exit))
             .setPositiveButton(getString(R.string.stop_and_exit)) { _, _ ->
                 stopNavigation()
-                // Small delay to ensure navigation stops before exiting
                 lifecycleScope.launch {
                     delay(500)
                     finish()
@@ -1003,9 +1446,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
             .show()
     }
 
-    /**
-     * Draw real road route using Google Directions API
-     */
     private fun drawRealRoute(
         start: LatLng,
         end: LatLng,
@@ -1013,34 +1453,23 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     ) {
         lifecycleScope.launch {
             try {
-                // Show loading state
-                Toast.makeText(this@DashboardActivity, "Loading route...", Toast.LENGTH_SHORT)
-                    .show()
+                Toast.makeText(this@DashboardActivity, "Loading route...", Toast.LENGTH_SHORT).show()
 
-                // Convert transport mode to API string
                 val apiMode = when (transportMode) {
                     TransportMode.WALKING -> "walking"
-                    TransportMode.MOTORCYCLE -> "bicycling" // Use bicycling as closest option for motorcycle
+                    TransportMode.MOTORCYCLE -> "bicycling"
                     TransportMode.CAR -> "driving"
                 }
 
-                // Get real route from Directions API
                 val routeResult = locationHelper.getRealRoute(start, end, apiMode)
 
                 if (routeResult != null && routeResult.polylinePoints.isNotEmpty()) {
-                    // Remove existing polyline
                     currentPolyline?.remove()
 
-                    // Create polyline with all the route points
                     val polylineOptions = PolylineOptions()
                         .addAll(routeResult.polylinePoints)
                         .width(12f)
-                        .color(
-                            ContextCompat.getColor(
-                                this@DashboardActivity,
-                                R.color.primary_brown
-                            )
-                        )
+                        .color(ContextCompat.getColor(this@DashboardActivity, R.color.primary_brown))
                         .geodesic(true)
                         .jointType(JointType.ROUND)
                         .startCap(RoundCap())
@@ -1048,7 +1477,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
 
                     currentPolyline = mMap.addPolyline(polylineOptions)
 
-                    // Update route info with real data
                     updateRealRouteInfo(routeResult)
 
                     Toast.makeText(
@@ -1058,7 +1486,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                     ).show()
 
                 } else {
-                    // Fallback to straight line if API fails
                     drawStraightLineRoute(start, end)
                     Toast.makeText(
                         this@DashboardActivity,
@@ -1069,7 +1496,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error drawing real route", e)
-                // Fallback to straight line
                 drawStraightLineRoute(start, end)
                 Toast.makeText(
                     this@DashboardActivity,
@@ -1080,9 +1506,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         }
     }
 
-    /**
-     * Fallback method for straight line route
-     */
     private fun drawStraightLineRoute(start: LatLng, end: LatLng) {
         currentPolyline?.remove()
 
@@ -1098,33 +1521,24 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
 
         currentPolyline = mMap.addPolyline(polylineOptions)
 
-        // Update with estimated info
         currentLocation?.let { current ->
             updateRouteInfo(current, end)
         }
     }
 
-    /**
-     * Update route info section with real route data
-     */
     private fun updateRealRouteInfo(routeResult: LocationHelper.RouteResult) {
         routeInfoSection.visibility = View.VISIBLE
 
         tvDistance.text = routeResult.distance
         tvEta.text = routeResult.duration
 
-        // Determine traffic condition based on duration vs straight-line distance
         val trafficCondition = estimateTrafficFromRoute(routeResult)
         tvTrafficCondition.text = trafficCondition
         updateTrafficColor(trafficCondition)
     }
 
-    /**
-     * Estimate traffic condition from real route data
-     */
     private fun estimateTrafficFromRoute(routeResult: LocationHelper.RouteResult): String {
-        // Compare actual travel time vs ideal time
-        val idealMinutes = (routeResult.distanceKm * 1.0).toInt() // 1 min per km ideal
+        val idealMinutes = (routeResult.distanceKm * 1.0).toInt()
         val actualMinutes = routeResult.durationMinutes
 
         return when {
@@ -1134,9 +1548,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         }
     }
 
-    /**
-     * Update traffic condition color
-     */
     private fun updateTrafficColor(condition: String) {
         val color = when (condition) {
             "Light" -> ContextCompat.getColor(this, R.color.success)
@@ -1159,12 +1570,9 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
             val navigationEnded = intent.getBooleanExtra("navigation_ended", false)
 
             if (navigationEnded) {
-                // Navigation was already ended by the alarm stop action
                 lifecycleScope.launch {
-                    // Stop navigation completely
                     stopNavigation()
 
-                    // Show completion message
                     Toast.makeText(this@DashboardActivity,
                         "You've reached your destination! Navigation ended.",
                         Toast.LENGTH_LONG
@@ -1175,6 +1583,40 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
             Log.d(TAG, "Alarm stopped handling completed, alarm ID: $stoppedAlarmId")
         }
     }
+
+    private fun handlePlacePinIntent() {
+        if (intent.getBooleanExtra("pin_location", false)) {
+            val lat = intent.getDoubleExtra("destination_lat", 0.0)
+            val lng = intent.getDoubleExtra("destination_lng", 0.0)
+            val name = intent.getStringExtra("destination_name") ?: "Selected Place"
+            val address = intent.getStringExtra("destination_address") ?: ""
+            val category = intent.getStringExtra("place_category") ?: ""
+            val autoCreateGeofence = intent.getBooleanExtra("auto_create_geofence", false)
+
+            if (lat != 0.0 && lng != 0.0) {
+                val location = LatLng(lat, lng)
+                
+                // Wait for map to be ready, then pin the location
+                if (::mMap.isInitialized) {
+                    pinLocationFromPlaces(location, name, address, autoCreateGeofence)
+                } else {
+                    // Store for later when map is ready
+                    pendingPinLocation = PendingPinData(location, name, address, autoCreateGeofence)
+                }
+                
+                Log.d(TAG, "Place pin intent handled: $name at $location")
+            }
+        }
+    }
+
+    private data class PendingPinData(
+        val location: LatLng,
+        val name: String,
+        val address: String,
+        val autoCreateGeofence: Boolean
+    )
+
+    private var pendingPinLocation: PendingPinData? = null
 
     private fun setupLocationCard() {
         val locationCard = findViewById<View>(R.id.locationCardInclude)
@@ -1192,7 +1634,11 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         btnToggleNavigation = locationCard.findViewById(R.id.btnToggleNavigation)
         progressNavigation = locationCard.findViewById(R.id.progressNavigation)
 
-        // Initialize pinnedLocationDivider and navigationInstructions
+        // Initialize geofence distance views
+        geofenceDistanceInfo = locationCard.findViewById(R.id.geofenceDistanceInfo)
+        tvGeofenceStatus = locationCard.findViewById(R.id.tvGeofenceStatus)
+        tvGeofenceDistance = locationCard.findViewById(R.id.tvGeofenceDistance)
+
         pinnedLocationDivider = locationCard.findViewById(R.id.pinnedLocationDivider) ?: View(this)
         navigationInstructions = locationCard.findViewById(R.id.navigationInstructions) ?: View(this)
 
@@ -1203,9 +1649,9 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         pinnedLocationDivider.visibility = View.GONE
         navigationStatusSection.visibility = View.GONE
         navigationInstructions.visibility = View.GONE
+        geofenceDistanceInfo.visibility = View.GONE
         tvNoPinMessage.visibility = View.VISIBLE
 
-        // Setup location card navigation button
         btnToggleNavigation.setOnClickListener {
             if (pinnedLocation == null) {
                 Toast.makeText(this, "Please pin a location first", Toast.LENGTH_SHORT).show()
@@ -1233,8 +1679,7 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                 val user = sessionManager.fetchCurrentUserData(userId)
 
                 if (user != null) {
-                    tvUserName.text =
-                        if (user.isAnonymous) "Guest" else "${user.firstName} ${user.lastName}"
+                    tvUserName.text = if (user.isAnonymous) "Guest" else "${user.firstName} ${user.lastName}"
                     tvUserEmail.text = if (user.isAnonymous) "Anonymous User" else user.email
                 } else {
                     tvUserName.text = session["userName"] as String? ?: "User"
@@ -1244,12 +1689,61 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
             }
         }
     }
+    
+    /**
+     * Updates the geofence distance information in the location card
+     * Shows distance to geofence and changes status when inside geofence
+     */
+    private fun updateGeofenceDistanceInfo() {
+        if (currentLocation == null || pinnedLocation == null || !isNavigating) {
+            geofenceDistanceInfo.visibility = View.GONE
+            return
+        }
+        
+        // Show the geofence distance info section
+        geofenceDistanceInfo.visibility = View.VISIBLE
+        
+        // Calculate distance to destination
+        val distanceToDestination = locationHelper.calculateDistance(currentLocation!!, pinnedLocation!!)
+        
+        // Get geofence radius
+        val geofenceRadius = GeofenceHelper.getGeofenceRadius() / 1000.0 // Convert to km
+        
+        // Determine if user is inside geofence
+        val isInsideGeofence = distanceToDestination <= geofenceRadius
+        
+        // Update UI based on location relative to geofence
+        if (isInsideGeofence) {
+            tvGeofenceStatus.text = "You are arriving to the destination"
+            tvGeofenceDistance.text = "Inside geofence zone"
+            
+            // Get geofence helper to check if we need to trigger the alarm manually
+            val geofenceHelper = GeofenceHelper(this)
+            
+            // If we're inside the geofence but the alarm hasn't been triggered yet,
+            // manually trigger the alarm notification
+            if (!geofenceHelper.isUserInsideGeofence()) {
+                Log.d(TAG, "User inside geofence but status not set - triggering alarm manually")
+                geofenceHelper.setUserInsideGeofence(true)
+                
+                // Show alarm notification
+                notificationService.showAlarmNotification(
+                    "🚨 DESTINATION ALARM!",
+                    "You have arrived at your destination!",
+                    GeofenceBroadcastReceiver.ARRIVAL_ALARM_ID
+                )
+            }
+        } else {
+            val distanceToGeofence = distanceToDestination - geofenceRadius
+            tvGeofenceStatus.text = "Outside geofence"
+            tvGeofenceDistance.text = "Distance to geofence: ${locationHelper.formatDistance(distanceToGeofence)}"
+        }
+    }
 
     private fun setupNotificationButtons() {
         findViewById<Button>(R.id.btnTestNotification).setOnClickListener {
             notificationService.scheduleTestNotification()
-            Toast.makeText(this, "Test notification scheduled (3 seconds)", Toast.LENGTH_SHORT)
-                .show()
+            Toast.makeText(this, "Test notification scheduled (3 seconds)", Toast.LENGTH_SHORT).show()
         }
 
         findViewById<Button>(R.id.btnTestAlarm).setOnClickListener {
@@ -1275,8 +1769,18 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
                 getDeviceLocation()
             }
 
-            // Set up map interaction based on navigation state
             updateMapInteraction()
+
+            // Handle pending pin location if map is now ready
+            pendingPinLocation?.let { pendingData ->
+                pinLocationFromPlaces(
+                    pendingData.location,
+                    pendingData.name,
+                    pendingData.address,
+                    pendingData.autoCreateGeofence
+                )
+                pendingPinLocation = null
+            }
 
         } catch (e: SecurityException) {
             Log.e(TAG, "SecurityException in onMapReady", e)
@@ -1375,12 +1879,10 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     }
 
     private fun addOrUpdateMarkerWithGeofence(latLng: LatLng) {
-        // Remove existing elements
         currentMarker?.remove()
         currentPolyline?.remove()
         geofenceCircle?.remove()
 
-        // Add new marker
         currentMarker = mMap.addMarker(
             MarkerOptions()
                 .position(latLng)
@@ -1390,7 +1892,6 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         pinnedLocation = latLng
         mMap.animateCamera(CameraUpdateFactory.newLatLng(latLng))
 
-        // Add geofence visualization (but don't activate geofence yet)
         addGeofenceVisualization(latLng, GeofenceHelper.getGeofenceRadius())
     }
 
@@ -1399,9 +1900,14 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
             try {
                 val address = locationHelper.getAddressFromLocation(latLng)
                 tvCurrentLocationAddress.text = address
+                tvCurrentLocationSummary.text = address
+                
+                // Update geofence distance information
+                updateGeofenceDistanceInfo()
             } catch (e: Exception) {
                 Log.e(TAG, "Error updating current location info", e)
                 tvCurrentLocationAddress.text = "Location unavailable"
+                tvCurrentLocationSummary.text = "Location unavailable"
             }
         }
     }
@@ -1441,18 +1947,12 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
     private fun logout() {
         lifecycleScope.launch {
             try {
-                // Stop navigation if active
                 if (isNavigating) {
                     stopNavigation()
                 }
 
-                // Clear session
                 sessionManager.clearSession()
-
-                // Sign out from auth service
                 authService.signOut()
-
-                // Navigate to login
                 navigateToLogin()
 
             } catch (e: Exception) {
@@ -1473,36 +1973,28 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
         super.onResume()
         loadGeofenceSettings()
 
-        // Update geofence visualization with new radius if pinned location exists
         pinnedLocation?.let { pinned ->
             val radius = GeofenceHelper.getGeofenceRadius()
             addGeofenceVisualization(pinned, radius)
             currentMarker?.title = "Pinned Location (${radius.toInt()}m geofence)"
         }
 
-        // Ensure navigation state UI is correct
         updateNavigationUI()
         updateDrawerState()
         updateToolbarState()
 
-        // Check if navigation state changed while app was in background
         checkNavigationState()
     }
 
     override fun onDestroy() {
         super.onDestroy()
 
-        // Clean up animations
         navigationStatusAnimation?.cancel()
-
-        // NavigationHelper will handle geofence cleanup automatically
-        // Don't manually stop navigation here as it should persist across activity lifecycle
+        navigationStatusCollapsedAnimation?.cancel()
     }
 
     override fun onPause() {
         super.onPause()
-
-        // Don't stop navigation when pausing - let it continue in background
         Log.d(TAG, "Activity paused, navigation continues in background")
     }
 
@@ -1519,5 +2011,76 @@ class DashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSe
 
     private fun performLogout() {
         logout()
+    }
+
+    /**
+     * Pin a location from PlacesActivity with automatic geofence creation
+     */
+    private fun pinLocationFromPlaces(location: LatLng, name: String, address: String, autoCreateGeofence: Boolean) {
+        try {
+            Log.d(TAG, "Pinning location from places: $name at $location")
+
+            // Remove existing markers and polylines
+            currentMarker?.remove()
+            currentPolyline?.remove()
+            geofenceCircle?.remove()
+
+            // Add marker with place name
+            val title = "$name (${GeofenceHelper.getGeofenceRadius().toInt()}m geofence)"
+            currentMarker = mMap.addMarker(
+                MarkerOptions()
+                    .position(location)
+                    .title(title)
+            )
+
+            // Set pinned location
+            pinnedLocation = location
+
+            // Move camera to the location
+            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(location, 16f))
+
+            // Add geofence visualization
+            addGeofenceVisualization(location, GeofenceHelper.getGeofenceRadius())
+
+            // Update pinned location info in the UI
+            updatePinnedLocationInfo(location)
+
+            // Auto-create geofence if enabled in preferences
+            if (autoCreateGeofence) {
+                val sharedPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
+                val autoGeofenceEnabled = sharedPrefs.getBoolean("auto_create_geofence", true) // Default to true
+                
+                if (autoGeofenceEnabled) {
+                    // Create automatic geofence (passive mode)
+                    geofenceHelper.addAutomaticGeofence(location)
+                    Toast.makeText(
+                        this,
+                        "Location pinned with automatic geofence",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    Toast.makeText(
+                        this,
+                        "Location pinned. Tap the pin to start navigation.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+
+            // Draw route if current location is available
+            currentLocation?.let { current ->
+                drawRealRoute(current, location, selectedTransportMode)
+            }
+
+            // Show modal with place information
+            loadModalLocationData(location)
+            showModal()
+
+            Log.d(TAG, "Successfully pinned location: $name")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error pinning location from places", e)
+            Toast.makeText(this, "Error pinning location: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 }

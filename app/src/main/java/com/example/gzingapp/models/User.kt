@@ -10,6 +10,9 @@ data class User(
     val isAnonymous: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
 ) {
+    // Alias for uid to maintain compatibility with code expecting 'id'
+    val id: String
+        get() = uid
     // Empty constructor for Firebase
     constructor() : this("", "", "", "", "", "", false, 0)
-} 
+}

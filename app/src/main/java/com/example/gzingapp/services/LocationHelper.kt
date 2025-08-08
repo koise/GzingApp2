@@ -361,3 +361,155 @@ class LocationHelper(private val context: Context) {
         }
     }
 }
+
+/*
+    package com.example.gzingapp.services
+
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.location.Location
+import android.util.Log
+import androidx.core.app.ActivityCompat
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.maps.model.LatLng
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.math.*
+
+class LocationHelper(private val context: Context) {
+
+    private val fusedLocationClient: FusedLocationProviderClient =
+        LocationServices.getFusedLocationProviderClient(context)
+
+    companion object {
+        private const val TAG = "LocationHelper"
+        private const val EARTH_RADIUS_KM = 6371.0
+    }
+
+    /**
+     * Calculate distance between two LatLng points using Haversine formula
+     * @param start Starting point
+     * @param end Ending point
+     * @return Distance in kilometers
+     */
+    fun calculateDistance(start: LatLng, end: LatLng): Double {
+        val lat1Rad = Math.toRadians(start.latitude)
+        val lat2Rad = Math.toRadians(end.latitude)
+        val deltaLat = Math.toRadians(end.latitude - start.latitude)
+        val deltaLng = Math.toRadians(end.longitude - start.longitude)
+
+        val a = sin(deltaLat / 2).pow(2) +
+                cos(lat1Rad) * cos(lat2Rad) * sin(deltaLng / 2).pow(2)
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+        return EARTH_RADIUS_KM * c
+    }
+
+    /**
+     * Calculate bearing from start to end point
+     * @param start Starting point
+     * @param end Ending point
+     * @return Bearing in degrees
+     */
+    fun calculateBearing(start: LatLng, end: LatLng): Double {
+        val lat1Rad = Math.toRadians(start.latitude)
+        val lat2Rad = Math.toRadians(end.latitude)
+        val deltaLng = Math.toRadians(end.longitude - start.longitude)
+
+        val y = sin(deltaLng) * cos(lat2Rad)
+        val x = cos(lat1Rad) * sin(lat2Rad) - sin(lat1Rad) * cos(lat2Rad) * cos(deltaLng)
+
+        val bearingRad = atan2(y, x)
+        return (Math.toDegrees(bearingRad) + 360) % 360
+    }
+
+    /**
+     * Get current location asynchronously
+     */
+    suspend fun getCurrentLocation(): LatLng? = suspendCancellableCoroutine { continuation ->
+        if (ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED &&
+            ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            Log.e(TAG, "Location permission not granted")
+            continuation.resume(null)
+            return@suspendCancellableCoroutine
+        }
+
+        try {
+            fusedLocationClient.lastLocation
+                .addOnSuccessListener { location: Location? ->
+                    if (location != null) {
+                        val latLng = LatLng(location.latitude, location.longitude)
+                        Log.d(TAG, "Current location: $latLng")
+                        continuation.resume(latLng)
+                    } else {
+                        Log.w(TAG, "Current location is null")
+                        continuation.resume(null)
+                    }
+                }
+                .addOnFailureListener { exception ->
+                    Log.e(TAG, "Failed to get current location", exception)
+                    continuation.resumeWithException(exception)
+                }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting current location", e)
+            continuation.resumeWithException(e)
+        }
+    }
+
+    /**
+     * Check if location permissions are granted
+     */
+    fun hasLocationPermission(): Boolean {
+        return ActivityCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+                ActivityCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Format distance for display
+     */
+    fun formatDistance(distanceKm: Double): String {
+        return if (distanceKm < 1.0) {
+            "${(distanceKm * 1000).toInt()} m"
+        } else {
+            "${String.format("%.1f", distanceKm)} km"
+        }
+    }
+
+    /**
+     * Check if a location is within Antipolo-Marikina area (approximate bounds)
+     */
+    fun isWithinServiceArea(location: LatLng): Boolean {
+        // Approximate bounds for Antipolo-Marikina area
+        val minLat = 14.5500 // South boundary
+        val maxLat = 14.6500 // North boundary
+        val minLng = 121.1000 // West boundary
+        val maxLng = 121.2500 // East boundary
+
+        return location.latitude in minLat..maxLat &&
+               location.longitude in minLng..maxLng
+    }
+
+    /**
+     * Get default location (Center of Antipolo-Marikina area)
+     */
+    fun getDefaultLocation(): LatLng {
+        return LatLng(14.5995, 121.1817) // Antipolo coordinates
+    }
+}
+ */

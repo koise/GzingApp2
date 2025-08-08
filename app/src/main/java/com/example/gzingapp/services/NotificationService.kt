@@ -28,12 +28,26 @@ class NotificationService(private val context: Context) {
     companion object {
         const val CHANNEL_ID = "GzingAppChannel"
         const val ALARM_CHANNEL_ID = "GzingAppAlarmChannel"
+        const val NAVIGATION_CHANNEL_ID = "GzingAppNavigationChannel"
         const val CHANNEL_NAME = "GzingApp Notifications"
         const val ALARM_CHANNEL_NAME = "GzingApp Alarms"
+        const val NAVIGATION_CHANNEL_NAME = "GzingApp Navigation"
         const val CHANNEL_DESCRIPTION = "Notifications from GzingApp"
         const val ALARM_CHANNEL_DESCRIPTION = "Critical alarm notifications from GzingApp"
+        const val NAVIGATION_CHANNEL_DESCRIPTION = "Navigation status and updates from GzingApp"
         private const val TAG = "NotificationService"
         const val STOP_ALARM_ACTION = "STOP_ALARM_ACTION"
+        const val STOP_NAVIGATION_ACTION = "STOP_NAVIGATION_ACTION"
+
+        // Notification IDs
+        const val NAVIGATION_ONGOING_ID = 3001
+        const val NAVIGATION_STARTED_ID = 3002
+        const val NAVIGATION_STOPPED_ID = 3003
+        const val NAVIGATION_ARRIVED_ID = 3004
+        const val NAVIGATION_CANCELLED_ID = 3005
+        
+        // Request codes
+        const val RESTART_NAVIGATION_REQUEST_CODE = 4001
 
         // Static references for stopping alarm from anywhere
         private var currentMediaPlayer: MediaPlayer? = null
@@ -169,8 +183,19 @@ class NotificationService(private val context: Context) {
                 setSound(alarmSound, audioAttributes)
             }
 
+            // Navigation notification channel
+            val navigationChannel = NotificationChannel(NAVIGATION_CHANNEL_ID, NAVIGATION_CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = NAVIGATION_CHANNEL_DESCRIPTION
+                enableLights(false)
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 200, 100, 200)
+                setShowBadge(true)
+                lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
+            }
+
             notificationManager.createNotificationChannel(channel)
             notificationManager.createNotificationChannel(alarmChannel)
+            notificationManager.createNotificationChannel(navigationChannel)
 
             Log.d(TAG, "Notification channels created")
         }
@@ -217,7 +242,300 @@ class NotificationService(private val context: Context) {
         }
     }
 
+    /**
+     * Show ongoing navigation notification
+     */
+    fun showNavigationOngoingNotification(destination: String, duration: String = "") {
+        val intent = Intent(context, DashboardActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        // Create Stop Navigation action
+        val stopNavigationIntent = Intent(context, StopAlarmReceiver::class.java).apply {
+            action = STOP_NAVIGATION_ACTION
+            putExtra("notificationId", NAVIGATION_ONGOING_ID)
+        }
+
+        val stopNavigationPendingIntent = PendingIntent.getBroadcast(
+            context,
+            NAVIGATION_ONGOING_ID + 1000,
+            stopNavigationIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val contentText = if (duration.isNotEmpty()) {
+            "Navigating to: $destination • $duration"
+        } else {
+            "Navigating to: $destination"
+        }
+
+        val builder = NotificationCompat.Builder(context, NAVIGATION_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_navigation)
+            .setContentTitle("🧭 Navigation Active")
+            .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(false)
+            .setOngoing(true)
+            .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .addAction(
+                R.drawable.ic_stop,
+                "Stop Navigation",
+                stopNavigationPendingIntent
+            )
+            .setColor(context.getColor(R.color.primary_brown))
+
+        with(NotificationManagerCompat.from(context)) {
+            if (ActivityCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+            ) {
+                notify(NAVIGATION_ONGOING_ID, builder.build())
+                Log.d(TAG, "Navigation ongoing notification shown")
+            } else {
+                Log.e(TAG, "POST_NOTIFICATIONS permission not granted")
+            }
+        }
+    }
+
+    /**
+     * Show navigation started notification
+     */
+    fun showNavigationStartedNotification(destination: String) {
+        val intent = Intent(context, DashboardActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val builder = NotificationCompat.Builder(context, NAVIGATION_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_navigation)
+            .setContentTitle("🧭 Navigation Started")
+            .setContentText("Navigating to: $destination")
+            .setStyle(NotificationCompat.BigTextStyle().bigText("Navigation has started to: $destination\n\nYou'll receive an alarm notification when you arrive at your destination."))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setColor(context.getColor(R.color.navigation_active))
+
+        // Trigger gentle vibration for navigation start
+        triggerVibration(longArrayOf(0, 200, 100, 200))
+
+        with(NotificationManagerCompat.from(context)) {
+            if (ActivityCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+            ) {
+                notify(NAVIGATION_STARTED_ID, builder.build())
+                Log.d(TAG, "Navigation started notification shown")
+
+                // Auto-dismiss after 5 seconds to avoid clutter
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    cancel(NAVIGATION_STARTED_ID)
+                }, 5000)
+            } else {
+                Log.e(TAG, "POST_NOTIFICATIONS permission not granted")
+            }
+        }
+    }
+
+    /**
+     * Show navigation stopped notification
+     */
+    fun showNavigationStoppedNotification(reason: String = "Navigation stopped") {
+        val intent = Intent(context, DashboardActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val builder = NotificationCompat.Builder(context, NAVIGATION_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stop)
+            .setContentTitle("🛑 Navigation Stopped")
+            .setContentText(reason)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setColor(context.getColor(R.color.text_secondary))
+
+        with(NotificationManagerCompat.from(context)) {
+            if (ActivityCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+            ) {
+                notify(NAVIGATION_STOPPED_ID, builder.build())
+                Log.d(TAG, "Navigation stopped notification shown")
+
+                // Auto-dismiss after 3 seconds
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    cancel(NAVIGATION_STOPPED_ID)
+                }, 3000)
+            } else {
+                Log.e(TAG, "POST_NOTIFICATIONS permission not granted")
+            }
+        }
+    }
+    
+    /**
+     * Show navigation cancelled notification with restart option
+     */
+    fun showNavigationCancelledNotification(message: String) {
+        Log.d(TAG, "Showing navigation cancelled notification: $message")
+        
+        val mainIntent = Intent(context, DashboardActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("restart_navigation", true)
+        }
+        
+        val mainPendingIntent = PendingIntent.getActivity(
+            context,
+            RESTART_NAVIGATION_REQUEST_CODE,
+            mainIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        val builder = NotificationCompat.Builder(context, NAVIGATION_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stop)
+            .setContentTitle("🚫 Navigation Cancelled")
+            .setContentText(message)
+            .setContentIntent(mainPendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setColor(context.getColor(R.color.navigation_error))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .addAction(
+                R.drawable.ic_navigation,
+                "Restart Navigation",
+                mainPendingIntent
+            )
+
+        with(NotificationManagerCompat.from(context)) {
+            if (ActivityCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+            ) {
+                notify(NAVIGATION_CANCELLED_ID, builder.build())
+                Log.d(TAG, "Navigation cancelled notification displayed")
+            } else {
+                Log.w(TAG, "Cannot show notification - missing POST_NOTIFICATIONS permission")
+            }
+        }
+    }
+
+    /**
+     * Show destination arrived notification
+     */
+    fun showDestinationArrivedNotification(destination: String) {
+        val intent = Intent(context, DashboardActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val builder = NotificationCompat.Builder(context, NAVIGATION_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_navigation)
+            .setContentTitle("🎯 Destination Reached!")
+            .setContentText("You have arrived at: $destination")
+            .setStyle(NotificationCompat.BigTextStyle().bigText("Congratulations! You have successfully arrived at your destination: $destination"))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setColor(context.getColor(R.color.success))
+
+        // Celebration vibration pattern
+        triggerVibration(longArrayOf(0, 300, 100, 300, 100, 300))
+
+        with(NotificationManagerCompat.from(context)) {
+            if (ActivityCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+            ) {
+                notify(NAVIGATION_ARRIVED_ID, builder.build())
+                Log.d(TAG, "Destination arrived notification shown")
+            } else {
+                Log.e(TAG, "POST_NOTIFICATIONS permission not granted")
+            }
+        }
+    }
+
+    /**
+     * Update ongoing navigation notification with new info
+     */
+    fun updateNavigationOngoingNotification(destination: String, duration: String, distance: String = "") {
+        val contentText = buildString {
+            append("To: $destination")
+            if (duration.isNotEmpty()) append(" • $duration")
+            if (distance.isNotEmpty()) append(" • $distance")
+        }
+
+        showNavigationOngoingNotification(destination, if (duration.isNotEmpty()) "$duration${if (distance.isNotEmpty()) " • $distance" else ""}" else distance)
+    }
+
+    /**
+     * Clear navigation notifications
+     */
+    fun clearNavigationNotifications() {
+        with(NotificationManagerCompat.from(context)) {
+            cancel(NAVIGATION_ONGOING_ID)
+            cancel(NAVIGATION_STARTED_ID)
+            cancel(NAVIGATION_STOPPED_ID)
+            Log.d(TAG, "Navigation notifications cleared")
+        }
+    }
+
+    /**
+     * Clear all navigation related notifications
+     */
+    fun clearAllNavigationNotifications() {
+        with(NotificationManagerCompat.from(context)) {
+            cancel(NAVIGATION_ONGOING_ID)
+            cancel(NAVIGATION_STARTED_ID)
+            cancel(NAVIGATION_STOPPED_ID)
+            cancel(NAVIGATION_ARRIVED_ID)
+            Log.d(TAG, "All navigation notifications cleared")
+        }
+    }
+
     fun showAlarmNotification(title: String, message: String, notificationId: Int) {
+        Log.d(TAG, "Showing alarm notification: $title")
+        
         val intent = Intent(context, DashboardActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
@@ -253,6 +571,7 @@ class NotificationService(private val context: Context) {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setFullScreenIntent(pendingIntent, true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .addAction(
                 R.drawable.ic_stop,
                 "Stop Alarm",
@@ -260,9 +579,11 @@ class NotificationService(private val context: Context) {
             )
 
         // Play system alarm sound using static reference
+        Log.d(TAG, "Starting alarm sound...")
         playAlarmSound()
 
-        // Trigger strong vibration for alarm using static reference
+        // Trigger strong vibration for alarm using static reference  
+        Log.d(TAG, "Starting alarm vibration...")
         triggerAlarmVibration()
 
         with(NotificationManagerCompat.from(context)) {
@@ -274,41 +595,58 @@ class NotificationService(private val context: Context) {
                 notify(notificationId, builder.build())
                 Log.d(TAG, "Alarm notification shown with ID: $notificationId")
             } else {
-                Log.e(TAG, "POST_NOTIFICATIONS permission not granted")
+                Log.e(TAG, "POST_NOTIFICATIONS permission not granted, still trying to show notification")
+                // Try to show anyway for older Android versions
+                notify(notificationId, builder.build())
             }
         }
     }
 
     fun playAlarmSound() {
         try {
+            Log.d(TAG, "Attempting to play alarm sound...")
+            
             // Stop any existing sound using static method
             stopAlarmSound()
 
             val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+
+            Log.d(TAG, "Using alarm URI: $alarmUri")
 
             currentMediaPlayer = MediaPlayer().apply {
-                setDataSource(context, alarmUri)
-                isLooping = true // Loop the alarm sound
+                try {
+                    setDataSource(context, alarmUri)
+                    isLooping = true // Loop the alarm sound
+                    setVolume(1.0f, 1.0f) // Max volume
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .setUsage(AudioAttributes.USAGE_ALARM)
-                            .build()
-                    )
-                }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        setAudioAttributes(
+                            AudioAttributes.Builder()
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                .setUsage(AudioAttributes.USAGE_ALARM)
+                                .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
+                                .build()
+                        )
+                    } else {
+                        @Suppress("DEPRECATION")
+                        setAudioStreamType(android.media.AudioManager.STREAM_ALARM)
+                    }
 
-                prepareAsync()
-                setOnPreparedListener {
-                    start()
-                    isAlarmPlaying = true
-                    Log.d(TAG, "Alarm sound started (static reference)")
-                }
-                setOnErrorListener { _, what, extra ->
-                    Log.e(TAG, "MediaPlayer error: what=$what, extra=$extra")
-                    false
+                    prepareAsync()
+                    setOnPreparedListener {
+                        start()
+                        isAlarmPlaying = true
+                        Log.d(TAG, "Alarm sound started successfully!")
+                    }
+                    setOnErrorListener { _, what, extra ->
+                        Log.e(TAG, "MediaPlayer error: what=$what, extra=$extra")
+                        isAlarmPlaying = false
+                        false
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error setting up MediaPlayer", e)
                 }
             }
         } catch (e: Exception) {
@@ -481,4 +819,3 @@ class NotificationService(private val context: Context) {
         }
     }
 }
-

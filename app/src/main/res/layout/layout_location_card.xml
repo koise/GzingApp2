@@ -16,304 +16,470 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Title -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/location_info"
-            android:textAppearance="@style/TextAppearance.MaterialComponents.Headline6"
-            android:textColor="@color/primary_brown" />
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="8dp"
-            android:background="@color/light_beige" />
-
-        <!-- Navigation Status Section - Show prominently when active -->
+        <!-- Collapsed Header Section - Always Visible -->
         <LinearLayout
-            android:id="@+id/navigationStatusSection"
+            android:id="@+id/collapsedHeader"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:visibility="gone"
-            android:background="@drawable/navigation_status_background"
-            android:padding="12dp"
-            android:layout_marginBottom="12dp">
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?android:attr/selectableItemBackground">
 
+            <!-- Title Row with Expand/Collapse Button -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical">
 
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/location_info"
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Headline6"
+                    android:textColor="@color/primary_brown" />
+
+                <!-- Expand/Collapse Icon -->
                 <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:layout_marginEnd="8dp"
+                    android:id="@+id/expandCollapseIcon"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_expand_more"
+                    android:tint="@color/primary_brown"
+                    android:contentDescription="Expand/Collapse"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:padding="4dp" />
+            </LinearLayout>
+
+            <!-- Navigation Status Section - Show in collapsed view when active -->
+            <LinearLayout
+                android:id="@+id/navigationStatusCollapsed"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:visibility="gone"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginEnd="6dp"
                     android:src="@drawable/ic_navigation"
                     android:tint="@color/navigation_active" />
 
                 <TextView
-                    android:id="@+id/tvNavigationStatus"
+                    android:id="@+id/tvNavigationStatusCollapsed"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/navigation_active"
+                    android:text="Navigation Active"
                     android:textColor="@color/navigation_active"
-                    android:textSize="16sp"
+                    android:textSize="14sp"
                     android:textStyle="bold" />
 
-                <!-- Animated pulse indicator -->
+                <!-- Mini pulse indicator -->
                 <View
-                    android:id="@+id/navigationPulse"
-                    android:layout_width="10dp"
-                    android:layout_height="10dp"
-                    android:layout_marginStart="8dp"
+                    android:id="@+id/navigationPulseCollapsed"
+                    android:layout_width="6dp"
+                    android:layout_height="6dp"
                     android:background="@drawable/navigation_pulse_indicator" />
             </LinearLayout>
 
-            <TextView
+            <!-- Quick Navigation Button Row - Always visible -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="You will be notified when you reach your destination"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <!-- Current Location Summary -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Current Location"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/tvCurrentLocationSummary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        tools:text="123 Main Street..." />
+                </LinearLayout>
+
+                <!-- Quick Navigation Button -->
+                <Button
+                    android:id="@+id/btnQuickNavigation"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="12dp"
+                    android:text="@string/start_navigation"
+                    android:backgroundTint="@color/primary_brown"
+                    android:textColor="@android:color/white"
+                    android:textAllCaps="false"
+                    android:textSize="14sp"
+                    android:minWidth="120dp"
+                    android:paddingHorizontal="16dp" />
+            </LinearLayout>
         </LinearLayout>
 
-        <!-- Navigation Instructions Section -->
+        <!-- Expandable Content Section -->
         <LinearLayout
-            android:id="@+id/navigationInstructions"
+            android:id="@+id/expandableContent"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:visibility="gone"
-            android:background="@color/light_beige"
-            android:padding="8dp"
-            android:layout_marginBottom="8dp">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Navigation Tips:"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:textColor="@color/text_primary" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="• Keep the app running in background\n• Ensure location services are enabled\n• You'll receive an alarm notification upon arrival"
-                android:textSize="11sp"
-                android:textColor="@color/text_secondary" />
-        </LinearLayout>
-
-        <!-- Current Location Section -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/current_location"
-                android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
-                android:textColor="@color/primary_brown"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvCurrentLocationAddress"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textColor="@color/text_primary"
-                tools:text="123 Main Street, City, State" />
-        </LinearLayout>
-
-        <!-- Pinned Location Divider (referenced in code) -->
-        <View
-            android:id="@+id/pinnedLocationDivider"
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="8dp"
-            android:background="@color/light_beige"
-            android:visibility="gone" />
-
-        <!-- Pinned Location Section -->
-        <LinearLayout
-            android:id="@+id/pinnedLocationSection"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/pinned_location"
-                android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
-                android:textColor="@color/primary_brown"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvPinnedLocationAddress"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textColor="@color/text_primary"
-                tools:text="456 Second Avenue, City, State" />
-        </LinearLayout>
-
-        <!-- Route Information Section -->
-        <LinearLayout
-            android:id="@+id/routeInfoSection"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
+            android:layout_marginTop="8dp">
 
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
+                android:layout_marginBottom="12dp"
                 android:background="@color/light_beige" />
 
-            <TextView
-                android:layout_width="wrap_content"
+            <!-- Navigation Status Section - Show prominently when active -->
+            <LinearLayout
+                android:id="@+id/navigationStatusSection"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/route_info"
-                android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
-                android:textColor="@color/primary_brown"
-                android:textStyle="bold" />
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:background="@drawable/navigation_status_background"
+                android:padding="12dp"
+                android:layout_marginBottom="12dp">
 
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_marginEnd="8dp"
+                        android:src="@drawable/ic_navigation"
+                        android:tint="@color/navigation_active" />
+
+                    <TextView
+                        android:id="@+id/tvNavigationStatus"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/navigation_active"
+                        android:textColor="@color/navigation_active"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <!-- Animated pulse indicator -->
+                    <View
+                        android:id="@+id/navigationPulse"
+                        android:layout_width="10dp"
+                        android:layout_height="10dp"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/navigation_pulse_indicator" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="You will be notified when you reach your destination"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+                
+                <!-- Geofence Distance Information -->
+                <LinearLayout
+                    android:id="@+id/geofenceDistanceInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/geofence_distance_background"
+                    android:padding="8dp">
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:layout_marginEnd="8dp"
+                        android:layout_gravity="center_vertical"
+                        android:src="@drawable/ic_location_pin"
+                        android:tint="@color/primary_brown" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvGeofenceStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textStyle="bold"
+                            android:textSize="14sp"
+                            android:textColor="@color/primary_brown"
+                            android:text="Outside geofence" />
+
+                        <TextView
+                            android:id="@+id/tvGeofenceDistance"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textSize="12sp"
+                            android:textColor="@color/text_secondary"
+                            android:text="Distance: calculating..." />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Navigation Instructions Section -->
+            <LinearLayout
+                android:id="@+id/navigationInstructions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:background="@color/light_beige"
+                android:padding="8dp"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Navigation Tips:"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="• Keep the app running in background\n• Ensure location services are enabled\n• You'll receive an alarm notification upon arrival"
+                    android:textSize="11sp"
+                    android:textColor="@color/text_secondary" />
+            </LinearLayout>
+
+            <!-- Current Location Section -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
+                android:orientation="vertical">
 
-                <!-- ETA -->
-                <LinearLayout
-                    android:layout_width="0dp"
+                <TextView
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:text="@string/current_location"
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
+                    android:textColor="@color/primary_brown"
+                    android:textStyle="bold" />
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/eta"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:id="@+id/tvEta"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        tools:text="15 min" />
-                </LinearLayout>
-
-                <!-- Distance -->
-                <LinearLayout
-                    android:layout_width="0dp"
+                <TextView
+                    android:id="@+id/tvCurrentLocationAddress"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/distance"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:id="@+id/tvDistance"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        tools:text="5.2 km" />
-                </LinearLayout>
-
-                <!-- Traffic -->
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/traffic"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:id="@+id/tvTrafficCondition"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        tools:text="Light" />
-                </LinearLayout>
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/text_primary"
+                    tools:text="123 Main Street, City, State" />
             </LinearLayout>
-        </LinearLayout>
 
-        <!-- Progress Spinner and Button Container -->
-        <RelativeLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp">
+            <!-- Pinned Location Divider -->
+            <View
+                android:id="@+id/pinnedLocationDivider"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:background="@color/light_beige"
+                android:visibility="gone" />
 
-            <!-- Progress Spinner -->
-            <ProgressBar
-                android:id="@+id/progressNavigation"
-                style="?android:attr/progressBarStyleSmall"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_centerInParent="true"
-                android:visibility="gone"
-                android:indeterminateTint="@color/primary_brown" />
-
-            <!-- Toggle Navigation Button -->
-            <Button
-                android:id="@+id/btnToggleNavigation"
+            <!-- Pinned Location Section -->
+            <LinearLayout
+                android:id="@+id/pinnedLocationSection"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/start_navigation"
-                android:backgroundTint="@color/primary_brown"
-                android:textColor="@android:color/white"
-                android:textAllCaps="false"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:minHeight="48dp"
-                android:layout_centerInParent="true" />
-        </RelativeLayout>
+                android:orientation="vertical"
+                android:visibility="gone">
 
-        <!-- No Pin Message -->
-        <TextView
-            android:id="@+id/tvNoPinMessage"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="@string/tap_map_to_place_pin"
-            android:textAlignment="center"
-            android:textColor="@color/text_secondary"
-            android:textStyle="italic"
-            android:visibility="visible" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/pinned_location"
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
+                    android:textColor="@color/primary_brown"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvPinnedLocationAddress"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/text_primary"
+                    tools:text="456 Second Avenue, City, State" />
+            </LinearLayout>
+
+            <!-- Route Information Section -->
+            <LinearLayout
+                android:id="@+id/routeInfoSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="@color/light_beige" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/route_info"
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
+                    android:textColor="@color/primary_brown"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal">
+
+                    <!-- ETA -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/eta"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/tvEta"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            tools:text="15 min" />
+                    </LinearLayout>
+
+                    <!-- Distance -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/distance"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/tvDistance"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            tools:text="5.2 km" />
+                    </LinearLayout>
+
+                    <!-- Traffic -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/traffic"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/tvTrafficCondition"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            tools:text="Light" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Progress Spinner and Button Container -->
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp">
+
+                <!-- Progress Spinner -->
+                <ProgressBar
+                    android:id="@+id/progressNavigation"
+                    style="?android:attr/progressBarStyleSmall"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_centerInParent="true"
+                    android:visibility="gone"
+                    android:indeterminateTint="@color/primary_brown" />
+
+                <!-- Toggle Navigation Button -->
+                <Button
+                    android:id="@+id/btnToggleNavigation"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/start_navigation"
+                    android:backgroundTint="@color/primary_brown"
+                    android:textColor="@android:color/white"
+                    android:textAllCaps="false"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:minHeight="48dp"
+                    android:layout_centerInParent="true" />
+            </RelativeLayout>
+
+            <!-- No Pin Message -->
+            <TextView
+                android:id="@+id/tvNoPinMessage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/tap_map_to_place_pin"
+                android:textAlignment="center"
+                android:textColor="@color/text_secondary"
+                android:textStyle="italic"
+                android:visibility="visible" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

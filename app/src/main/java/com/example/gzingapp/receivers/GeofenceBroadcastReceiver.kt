@@ -7,6 +7,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.example.gzingapp.services.NotificationService
 import com.example.gzingapp.services.GeofenceHelper
+import com.example.gzingapp.services.VoiceAnnouncementService
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
 
@@ -24,6 +25,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        Log.d(TAG, "GeofenceBroadcastReceiver triggered with action: ${intent.action}")
+        
         val geofencingEvent = GeofencingEvent.fromIntent(intent)
 
         if (geofencingEvent == null) {
@@ -39,6 +42,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
         // Get the transition type
         val geofenceTransition = geofencingEvent.geofenceTransition
+        Log.d(TAG, "Geofence transition detected: $geofenceTransition")
 
         // Test that the reported transition was of interest
         if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER ||
@@ -55,7 +59,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                     triggeringGeofences
                 )
 
-                Log.d(TAG, geofenceTransitionDetails)
+                Log.d(TAG, "Geofence transition details: $geofenceTransitionDetails")
 
                 // Check if user is in navigation mode
                 val isNavigationActive = isNavigationModeActive(context)
@@ -63,6 +67,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
                 // Handle notifications based on navigation mode and transition type
                 handleGeofenceTransition(context, geofenceTransition, isNavigationActive)
+            } else {
+                Log.w(TAG, "No triggering geofences found")
             }
         } else {
             // Log the error
@@ -75,29 +81,92 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
      */
     private fun handleGeofenceTransition(context: Context, geofenceTransition: Int, isNavigationActive: Boolean) {
         val notificationService = NotificationService(context)
+        val voiceService = VoiceAnnouncementService(context)
+
+        // Enhanced logging for debugging
+        Log.d(TAG, "=== GEOFENCE TRANSITION HANDLER ===")
+        Log.d(TAG, "Transition Type: $geofenceTransition")
+        Log.d(TAG, "Navigation Active: $isNavigationActive")
+        Log.d(TAG, "Voice Announcements Enabled: ${isVoiceAnnouncementEnabled(context)}")
+        Log.d(TAG, "Current Time: ${System.currentTimeMillis()}")
+
+        // Get geofence helper for status tracking
+        val geofenceHelper = GeofenceHelper(context)
+        Log.d(TAG, "Processing geofence transition regardless of current status")
+
 
         when (geofenceTransition) {
             Geofence.GEOFENCE_TRANSITION_ENTER -> {
+                Log.d(TAG, "🎯 USER ENTERED GEOFENCE - Processing arrival...")
+                
                 if (isNavigationActive) {
-                    // Navigation mode: Show ALARM for arrival
-                    Log.d(TAG, "Navigation active - showing arrival ALARM")
-                    notificationService.showAlarmNotification(
-                        "🚨 DESTINATION REACHED!",
-                        "You have arrived at your destination! Tap STOP ALARM to end navigation.",
-                        ARRIVAL_ALARM_ID
-                    )
+                    Log.d(TAG, "📱 NAVIGATION MODE: User entered destination geofence")
+                    Log.d(TAG, "🔊 Starting ALARM sequence for navigation arrival")
                     
-                    // Ensure the alarm is loud and persistent
-                    notificationService.playAlarmSound()
-                    notificationService.triggerAlarmVibration()
+                    try {
+                        // Show alarm notification for navigation arrival
+                        notificationService.showAlarmNotification(
+                            "🚨 DESTINATION REACHED!",
+                            "You have arrived at your destination! Tap STOP ALARM to end navigation.",
+                            ARRIVAL_ALARM_ID
+                        )
+                        Log.d(TAG, "✅ Alarm notification created successfully")
+
+                        // Voice announcement for arrival if enabled
+                        if (isVoiceAnnouncementEnabled(context)) {
+                            Log.d(TAG, "🗣️ Voice announcement enabled - triggering voice")
+                            voiceService.announceArrival("your destination")
+                            // Mark that voice announcement was triggered
+                            geofenceHelper.setVoiceAnnouncementTriggered(true)
+                        } else {
+                            Log.d(TAG, "🔇 Voice announcement disabled")
+                        }
+
+                        // Ensure the alarm is loud and persistent
+                        Log.d(TAG, "🔊 Triggering alarm sound and vibration for navigation arrival")
+                        notificationService.playAlarmSound()
+                        notificationService.triggerAlarmVibration()
+                        
+                        // Mark that user is now inside the geofence
+                        geofenceHelper.setUserInsideGeofence(true)
+                        
+                        Log.d(TAG, "✅ Navigation arrival alarm sequence completed")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "❌ Error in navigation arrival alarm sequence", e)
+                    }
                 } else {
-                    // Passive mode: Show regular notification
-                    Log.d(TAG, "Passive mode - showing arrival notification")
-                    notificationService.showNotification(
-                        "📍 You've Arrived!",
-                        "You have reached your pinned location",
-                        ARRIVAL_ALARM_ID
-                    )
+                    Log.d(TAG, "📌 PASSIVE MODE: User entered pinned location geofence")
+                    
+                    try {
+                        // Passive mode: Show regular notification or alarm based on voice settings
+                        if (isVoiceAnnouncementEnabled(context)) {
+                            Log.d(TAG, "🔊 Passive mode with voice enabled - showing arrival ALARM")
+                            notificationService.showAlarmNotification(
+                                "📍 Location Reached!",
+                                "You have arrived at your pinned location! Tap STOP ALARM to dismiss.",
+                                ARRIVAL_ALARM_ID
+                            )
+                            notificationService.playAlarmSound()
+                            notificationService.triggerAlarmVibration()
+                            voiceService.announceArrival("your pinned location")
+                            // Mark that voice announcement was triggered
+                            geofenceHelper.setVoiceAnnouncementTriggered(true)
+                            Log.d(TAG, "✅ Passive mode alarm completed")
+                        } else {
+                            Log.d(TAG, "🔕 Passive mode without voice - showing regular notification")
+                            notificationService.showNotification(
+                                "📍 You've Arrived!",
+                                "You have reached your pinned location",
+                                ARRIVAL_ALARM_ID
+                            )
+                            Log.d(TAG, "✅ Passive mode notification completed")
+                        }
+                        
+                        // Mark that user is now inside the geofence
+                        geofenceHelper.setUserInsideGeofence(true)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "❌ Error in passive mode arrival sequence", e)
+                    }
                 }
             }
 
@@ -164,6 +233,16 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             apply()
         }
         Log.d(TAG, "Navigation mode set to: $isActive")
+    }
+
+    /**
+     * Check if voice announcements are enabled in settings
+     */
+    private fun isVoiceAnnouncementEnabled(context: Context): Boolean {
+        val sharedPrefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val isEnabled = sharedPrefs.getBoolean("voice_announcements", false)
+        Log.d(TAG, "Voice announcements enabled: $isEnabled")
+        return isEnabled
     }
 
     /**

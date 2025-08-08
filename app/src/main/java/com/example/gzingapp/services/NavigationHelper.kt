@@ -27,6 +27,8 @@ class NavigationHelper(private val context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val geofenceHelper: GeofenceHelper by lazy { GeofenceHelper(context) }
+    private val notificationService: NotificationService by lazy { NotificationService(context) }
+    private val locationHelper: LocationHelper by lazy { LocationHelper(context) }
     private val mainHandler = Handler(Looper.getMainLooper())
 
     // Loading state management
@@ -145,17 +147,22 @@ class NavigationHelper(private val context: Context) {
 
     /**
      * Stop navigation with enhanced error handling, loading states, and timeout
+     * Logs the cancellation event for history tracking
      */
     fun stopNavigation(
         onSuccess: (() -> Unit)? = null,
         onFailure: ((Exception) -> Unit)? = null,
-        onLoadingStateChanged: ((Boolean) -> Unit)? = null
+        onLoadingStateChanged: ((Boolean) -> Unit)? = null,
+        userId: String? = null,
+        sessionType: String = if (userId != null) "user" else "guest"
     ) {
-        Log.d(TAG, "Stopping navigation")
+        Log.d(TAG, "Stopping navigation - Session type: $sessionType")
 
         // Check if already stopping navigation
         if (!isStoppingNavigation.compareAndSet(false, true)) {
-            onFailure?.invoke(IllegalStateException("Navigation is already being stopped"))
+            val error = IllegalStateException("Navigation is already being stopped")
+            Log.w(TAG, "Navigation stop failed: $error - Session type: $sessionType")
+            onFailure?.invoke(error)
             return
         }
 
@@ -166,11 +173,13 @@ class NavigationHelper(private val context: Context) {
         // Set up timeout for navigation stop
         stopNavigationTimeoutHandler = Runnable {
             if (isStoppingNavigation.get() && currentState == NavigationState.STOPPING) {
-                Log.e(TAG, "Navigation stop timeout reached")
+                Log.e(TAG, "Navigation stop timeout reached - Session type: $sessionType")
                 handleNavigationStopFailure(
                     Exception("Navigation stop timeout - operation took too long"),
                     onFailure,
-                    onLoadingStateChanged
+                    onLoadingStateChanged,
+                    userId,
+                    sessionType
                 )
             }
         }
@@ -179,6 +188,9 @@ class NavigationHelper(private val context: Context) {
         try {
             // Turn off navigation mode first
             setNavigationMode(false)
+
+            // Log the cancellation event
+            Log.i(TAG, "Navigation cancelled by user - Session type: $sessionType, UserId: $userId")
 
             // Remove geofence (or keep it as passive monitoring)
             geofenceHelper.removeGeofence(
@@ -191,18 +203,18 @@ class NavigationHelper(private val context: Context) {
                     isStoppingNavigation.set(false)
                     onLoadingStateChanged?.invoke(false)
 
-                    Log.d(TAG, "Navigation stopped successfully")
+                    Log.d(TAG, "Navigation stopped successfully - Session type: $sessionType")
                     onSuccess?.invoke()
                 },
                 onFailure = { error ->
-                    Log.e(TAG, "Failed to stop navigation cleanly", error)
+                    Log.e(TAG, "Failed to stop navigation cleanly - Session type: $sessionType", error)
                     // Still consider navigation stopped even if geofence removal failed
-                    handleNavigationStopFailure(error, onFailure, onLoadingStateChanged)
+                    handleNavigationStopFailure(error, onFailure, onLoadingStateChanged, userId, sessionType)
                 }
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Critical error in stopNavigation", e)
-            handleNavigationStopFailure(e, onFailure, onLoadingStateChanged)
+            Log.e(TAG, "Critical error in stopNavigation - Session type: $sessionType", e)
+            handleNavigationStopFailure(e, onFailure, onLoadingStateChanged, userId, sessionType)
         }
     }
 
@@ -224,6 +236,9 @@ class NavigationHelper(private val context: Context) {
 
             // Update geofence to passive mode
             geofenceHelper.setNavigationMode(false)
+
+            // Clear ongoing navigation notification but keep data
+            notificationService.clearNavigationNotifications()
 
             // Simulate brief loading for UI feedback
             mainHandler.postDelayed({
@@ -258,6 +273,17 @@ class NavigationHelper(private val context: Context) {
                 setNavigationMode(true, destination)
                 geofenceHelper.setNavigationMode(true)
 
+                // Get destination address for notification
+                try {
+                    // Use a simple coroutine to get address
+                    kotlinx.coroutines.runBlocking {
+                        val destinations = locationHelper.getAddressFromLocation(destination)
+                        notificationService.showNavigationOngoingNotification(destinations)
+                    }
+                } catch (e: Exception) {
+                    notificationService.showNavigationOngoingNotification("Selected location")
+                }
+
                 // Simulate brief loading for UI feedback
                 mainHandler.postDelayed({
                     currentState = NavigationState.ACTIVE
@@ -281,7 +307,103 @@ class NavigationHelper(private val context: Context) {
     }
 
     /**
-     * Check if navigation is currently active with error handling
+     * Handle navigation arrival (called by geofence trigger)
+     * Includes session information for better tracking and error handling
+     */
+    fun handleNavigationArrival(
+        destination: LatLng? = null,
+        userId: String? = null,
+        sessionType: String = if (userId != null) "user" else "guest"
+    ) {
+        Log.d(TAG, "Handling navigation arrival - Session type: $sessionType, UserId: $userId")
+
+        try {
+            val arrivalDestination = destination ?: getCurrentDestination()
+
+            if (arrivalDestination != null && isNavigationActive()) {
+                // Get destination address for notification
+                val destinationAddress = try {
+                    kotlinx.coroutines.runBlocking {
+                        locationHelper.getAddressFromLocation(arrivalDestination)
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to get address for arrival destination - Session type: $sessionType", e)
+                    "Your destination"
+                }
+
+                try {
+                    // Show destination arrived notification
+                    notificationService.showDestinationArrivedNotification(destinationAddress)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to show arrival notification - Session type: $sessionType", e)
+                    // Continue execution even if notification fails
+                }
+
+                try {
+                    // Clear ongoing navigation notifications
+                    notificationService.clearNavigationNotifications()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to clear navigation notifications - Session type: $sessionType", e)
+                    // Continue execution even if notification clearing fails
+                }
+
+                // Log the arrival event
+                Log.i(TAG, "Navigation arrival handled successfully - Session type: $sessionType, UserId: $userId, Destination: $destinationAddress")
+            } else {
+                if (arrivalDestination == null) {
+                    Log.w(TAG, "Cannot handle navigation arrival - no destination found - Session type: $sessionType")
+                } else if (!isNavigationActive()) {
+                    Log.w(TAG, "Cannot handle navigation arrival - navigation not active - Session type: $sessionType")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Critical error handling navigation arrival - Session type: $sessionType", e)
+            // Try to recover by resetting navigation state
+            try {
+                currentState = NavigationState.IDLE
+                Log.d(TAG, "Reset navigation state after arrival error - Session type: $sessionType")
+            } catch (resetError: Exception) {
+                Log.e(TAG, "Failed to reset navigation state after arrival error - Session type: $sessionType", resetError)
+            }
+        }
+    }
+
+    /**
+     * End navigation after arrival (called when user stops alarm)
+     * Includes session information for better tracking and error handling
+     */
+    fun endNavigationAfterArrival(
+        userId: String? = null,
+        sessionType: String = if (userId != null) "user" else "guest"
+    ) {
+        Log.d(TAG, "Ending navigation after arrival - Session type: $sessionType, UserId: $userId")
+
+        try {
+            // Stop navigation without showing stopped notification (already showed arrival)
+            setNavigationMode(false)
+            geofenceHelper.removeGeofence(
+                onSuccess = {
+                    currentState = NavigationState.IDLE
+                    Log.d(TAG, "Navigation ended successfully after arrival - Session type: $sessionType, UserId: $userId")
+                },
+                onFailure = { error ->
+                    Log.e(TAG, "Error removing geofence after arrival - Session type: $sessionType", error)
+                    currentState = NavigationState.IDLE
+                }
+            )
+
+            // Clear all navigation notifications
+            notificationService.clearAllNavigationNotifications()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error ending navigation after arrival - Session type: $sessionType", e)
+            // Force state reset
+            currentState = NavigationState.IDLE
+        }
+    }
+
+    /**
+     * Check if navigation is currently active
      */
     fun isNavigationActive(): Boolean {
         return try {
@@ -456,11 +578,14 @@ class NavigationHelper(private val context: Context) {
 
     /**
      * Handle navigation stop failure with cleanup
+     * Includes session information for better error tracking
      */
     private fun handleNavigationStopFailure(
         error: Exception,
         onFailure: ((Exception) -> Unit)?,
-        onLoadingStateChanged: ((Boolean) -> Unit)?
+        onLoadingStateChanged: ((Boolean) -> Unit)?,
+        userId: String? = null,
+        sessionType: String = "unknown"
     ) {
         // Cancel timeout
         stopNavigationTimeoutHandler?.let { mainHandler.removeCallbacks(it) }
@@ -469,7 +594,17 @@ class NavigationHelper(private val context: Context) {
         try {
             setNavigationMode(false)
         } catch (setModeError: Exception) {
-            Log.e(TAG, "Failed to set navigation mode to false during stop failure", setModeError)
+            Log.e(TAG, "Failed to set navigation mode to false during stop failure - Session type: $sessionType", setModeError)
+        }
+
+        // Log the failure with session information
+        Log.e(TAG, "Navigation stop failed - Session type: $sessionType, UserId: $userId, Error: ${error.message}")
+
+        // Clear notifications
+        try {
+            notificationService.clearAllNavigationNotifications()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to clear notifications during stop failure - Session type: $sessionType", e)
         }
 
         // Reset state
@@ -519,6 +654,13 @@ class NavigationHelper(private val context: Context) {
      */
     fun cleanup() {
         cancelOngoingOperations()
+
+        // Clear all navigation notifications
+        try {
+            notificationService.clearAllNavigationNotifications()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error clearing notifications during cleanup", e)
+        }
     }
 
     /**

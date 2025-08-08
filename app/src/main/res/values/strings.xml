@@ -62,6 +62,11 @@
     <string name="geofence_added">Geofence has been added</string>
     <string name="geofence_error">Error adding geofence</string>
     <string name="geofence_removed">Geofence has been removed</string>
+    <string name="geofence_outside">Outside geofence</string>
+    <string name="geofence_arriving">You are arriving to the destination</string>
+    <string name="geofence_inside">Inside geofence zone</string>
+    <string name="geofence_distance_to">Distance to geofence: %s</string>
+    <string name="geofence_distance_calculating">Distance: calculating…</string>
 
     <!-- Error Messages -->
     <string name="error_login_failed">Login failed. Please check your credentials and try again.</string>
@@ -111,4 +116,96 @@
     <string name="cancel">Cancel</string>
     <string name="yes">Yes</string>
     <string name="no">No</string>
+
+    <!-- Bottom Navigation -->
+    <string name="nav_map">Map</string>
+    <string name="nav_routes">Routes</string>
+    <string name="nav_places">Places</string>
+
+    <!-- Routes Activity -->
+    <string name="routes_title">Routes</string>
+    <string name="no_routes_available">No routes available</string>
+    <string name="route_saved">Route saved successfully</string>
+
+    <!-- Places Activity -->
+    <string name="places_title">Places</string>
+    <string name="no_places_available">No places available</string>
+    <string name="place_saved">Place saved successfully</string>
+
+    <!-- History menu item -->
+    <string name="history">History</string>
+
+
+    <!-- Places-specific strings -->
+    <string name="search_places">Search places...</string>
+    <string name="no_places_found">No places found</string>
+    <string name="try_different_search">Try searching for something else</string>
+    <string name="loading_places">Loading places...</string>
+    <string name="refresh_places">Pull to refresh places</string>
+    <string name="places_loaded">Found %d places nearby</string>
+    <string name="search_results">Found %d places for \'%s\'</string>
+    <string name="location_permission_needed">Location permission needed for nearby places</string>
+    <string name="using_default_location">Using default location. Enable GPS for better results.</string>
+    <string name="failed_to_get_location">Failed to get location</string>
+    <string name="error_loading_places">Error loading places</string>
+    <string name="search_failed">Search failed</string>
+    <string name="showing_sample_data">No places found nearby. Showing sample data.</string>
+
+    <!-- Place status -->
+    <string name="open_now">Open</string>
+    <string name="closed_now">Closed</string>
+    <string name="hours_unknown">Hours unknown</string>
+
+    <!-- Distance and rating -->
+    <string name="meters_away">%d m</string>
+    <string name="kilometers_away">%.1f km</string>
+    <string name="rating_format">★ %.1f</string>
+
+    <!-- Categories -->
+    <string name="category_restaurant">Restaurant</string>
+    <string name="category_shopping">Shopping</string>
+    <string name="category_healthcare">Healthcare</string>
+    <string name="category_education">Education</string>
+    <string name="category_recreation">Recreation</string>
+    <string name="category_religious">Religious</string>
+    <string name="category_financial">Financial</string>
+    <string name="category_accommodation">Accommodation</string>
+    <string name="category_gas_station">Gas Station</string>
+    <string name="category_all">All Categories</string>
+
+    <!-- Price levels -->
+    <string name="price_free">Free</string>
+    <string name="price_inexpensive">Inexpensive</string>
+    <string name="price_moderate">Moderate</string>
+    <string name="price_expensive">Expensive</string>
+    <string name="price_very_expensive">Very Expensive</string>
+
+    <!-- Actions -->
+    <string name="navigate_to_place">Navigate to %s</string>
+    <string name="call_place">Call %s</string>
+    <string name="visit_website">Visit website</string>
+    <string name="share_place">Share place</string>
+    <string name="save_place">Save place</string>
+    <string name="place_details">Place details</string>
+
+    <!-- Permissions -->
+    <string name="location_permission_title">Location Permission Required</string>
+    <string name="location_permission_message">This app needs location permission to show nearby places. Please grant location permission in settings.</string>
+    <string name="go_to_settings">Go to Settings</string>
+
+    <!-- Empty states -->
+    <string name="no_internet_connection">No internet connection</string>
+    <string name="check_internet_and_retry">Check your internet connection and try again</string>
+    <string name="retry">Retry</string>
+
+    <!-- Sort options -->
+    <string name="sort_by_distance">Sort by Distance</string>
+    <string name="sort_by_rating">Sort by Rating</string>
+    <string name="sort_by_name">Sort by Name</string>
+
+    <!-- Filter options -->
+    <string name="filter_places">Filter Places</string>
+    <string name="filter_by_category">Filter by Category</string>
+    <string name="filter_open_now">Open Now</string>
+    <string name="filter_with_rating">With Rating</string>
 </resources>

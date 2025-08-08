@@ -7,6 +7,7 @@ import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import androidx.appcompat.widget.Toolbar
 import com.example.gzingapp.R
 import com.example.gzingapp.services.GeofenceHelper
@@ -20,6 +21,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var rbRadius100: RadioButton
     private lateinit var rbRadius150: RadioButton
     private lateinit var rbRadius200: RadioButton
+    private lateinit var switchVoiceAnnouncements: SwitchCompat
 
     private lateinit var sessionManager: SessionManager
     private lateinit var geofenceHelper: GeofenceHelper
@@ -27,6 +29,7 @@ class SettingsActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "SettingsActivity"
         private const val PREF_GEOFENCE_RADIUS = "geofence_radius"
+        private const val PREF_VOICE_ANNOUNCEMENTS = "voice_announcements"
         private const val DEFAULT_RADIUS = 100f
         const val RESULT_SETTINGS_CHANGED = 1001
     }
@@ -51,6 +54,7 @@ class SettingsActivity : AppCompatActivity() {
         rbRadius100 = findViewById(R.id.rbRadius100)
         rbRadius150 = findViewById(R.id.rbRadius150)
         rbRadius200 = findViewById(R.id.rbRadius200)
+        switchVoiceAnnouncements = findViewById(R.id.switchVoiceAnnouncements)
     }
 
     private fun setupToolbar() {
@@ -74,6 +78,10 @@ class SettingsActivity : AppCompatActivity() {
             200 -> rbRadius200.isChecked = true
             else -> rbRadius100.isChecked = true // Default to 100m
         }
+
+        // Load voice announcements setting
+        val isVoiceEnabled = getVoiceAnnouncementsEnabled()
+        switchVoiceAnnouncements.isChecked = isVoiceEnabled
     }
 
     private fun setupListeners() {
@@ -95,6 +103,16 @@ class SettingsActivity : AppCompatActivity() {
                 getString(R.string.geofence_radius_updated, selectedRadius.toInt()),
                 Toast.LENGTH_SHORT
             ).show()
+        }
+
+        switchVoiceAnnouncements.setOnCheckedChangeListener { _, isChecked ->
+            saveVoiceAnnouncementsEnabled(isChecked)
+            val message = if (isChecked) {
+                "Voice announcements enabled"
+            } else {
+                "Voice announcements disabled"
+            }
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -148,6 +166,18 @@ class SettingsActivity : AppCompatActivity() {
         }
         setResult(RESULT_SETTINGS_CHANGED, resultIntent)
         finish()
+    }
+
+    private fun getVoiceAnnouncementsEnabled(): Boolean {
+        val sharedPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
+        return sharedPrefs.getBoolean(PREF_VOICE_ANNOUNCEMENTS, false)
+    }
+
+    private fun saveVoiceAnnouncementsEnabled(enabled: Boolean) {
+        val sharedPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
+        sharedPrefs.edit()
+            .putBoolean(PREF_VOICE_ANNOUNCEMENTS, enabled)
+            .apply()
     }
 
     override fun onDestroy() {

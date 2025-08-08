@@ -50,7 +50,7 @@ class DirectionsService(private val context: Context) {
     }
 
     /**
-     * Get route information between two points
+     * Get route information between two points with area validation
      */
     suspend fun getRoute(
         origin: LatLng,
@@ -58,6 +58,17 @@ class DirectionsService(private val context: Context) {
         mode: String = "driving"
     ): RouteInfo? = withContext(Dispatchers.IO) {
         try {
+            // Validate that both origin and destination are within service area
+            if (!isWithinServiceArea(origin)) {
+                Log.w(TAG, "Origin is outside Marikina/Antipolo service area: $origin")
+                return@withContext null
+            }
+            
+            if (!isWithinServiceArea(destination)) {
+                Log.w(TAG, "Destination is outside Marikina/Antipolo service area: $destination")
+                return@withContext null
+            }
+            
             val apiKey = getApiKey() ?: return@withContext null
 
             val originStr = "${origin.latitude},${origin.longitude}"
@@ -240,5 +251,51 @@ class DirectionsService(private val context: Context) {
         }
 
         return poly
+    }
+    
+    /**
+     * Check if location is within Marikina/Antipolo service area
+     */
+    private fun isWithinServiceArea(location: LatLng): Boolean {
+        // Service area bounds for Marikina/Antipolo
+        val minLat = 14.5500 // South boundary
+        val maxLat = 14.6500 // North boundary  
+        val minLng = 121.1000 // West boundary
+        val maxLng = 121.2500 // East boundary
+        
+        return location.latitude in minLat..maxLat &&
+                location.longitude in minLng..maxLng
+    }
+    
+    /**
+     * Get route with enhanced error handling and retry logic
+     */
+    suspend fun getRouteWithRetry(
+        origin: LatLng,
+        destination: LatLng,
+        mode: String = "driving",
+        maxRetries: Int = 3
+    ): RouteInfo? = withContext(Dispatchers.IO) {
+        var lastException: Exception? = null
+        
+        repeat(maxRetries) { attempt ->
+            try {
+                Log.d(TAG, "Route request attempt ${attempt + 1}/$maxRetries")
+                val result = getRoute(origin, destination, mode)
+                if (result != null) {
+                    return@withContext result
+                }
+            } catch (e: Exception) {
+                lastException = e
+                Log.w(TAG, "Route request attempt ${attempt + 1} failed", e)
+                if (attempt < maxRetries - 1) {
+                    // Wait before retry
+                    kotlinx.coroutines.delay(1000L * (attempt + 1))
+                }
+            }
+        }
+        
+        Log.e(TAG, "All route request attempts failed", lastException)
+        return@withContext null
     }
 }

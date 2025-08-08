@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="128dp"
+    android:height="128dp"
+    android:viewportWidth="128"
+    android:viewportHeight="128">
+    
+    <!-- Background circle -->
+    <path
+        android:fillColor="#8B4513"
+        android:pathData="M64,8 C99.3,8 128,36.7 128,72 C128,107.3 99.3,136 64,136 C28.7,136 0,107.3 0,72 C0,36.7 28.7,8 64,8 Z" />
+    
+    <!-- Clock face -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M64,18 C89.4,18 110,38.6 110,64 C110,89.4 89.4,110 64,110 C38.6,110 18,89.4 18,64 C18,38.6 38.6,18 64,18 Z" />
+    
+    <!-- Clock border -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#8B4513"
+        android:strokeWidth="3"
+        android:pathData="M64,20 C88.3,20 108,39.7 108,64 C108,88.3 88.3,108 64,108 C39.7,108 20,88.3 20,64 C20,39.7 39.7,20 64,20 Z" />
+    
+    <!-- Hour markers -->
+    <path
+        android:fillColor="#8B4513"
+        android:pathData="M64,25 L64,35" 
+        android:strokeColor="#8B4513"
+        android:strokeWidth="2"/>
+    <path
+        android:fillColor="#8B4513"
+        android:pathData="M103,64 L93,64" 
+        android:strokeColor="#8B4513"
+        android:strokeWidth="2"/>
+    <path
+        android:fillColor="#8B4513"
+        android:pathData="M64,103 L64,93" 
+        android:strokeColor="#8B4513"
+        android:strokeWidth="2"/>
+    <path
+        android:fillColor="#8B4513"
+        android:pathData="M25,64 L35,64" 
+        android:strokeColor="#8B4513"
+        android:strokeWidth="2"/>
+    
+    <!-- Clock hands pointing to 7:00 (wake up time) -->
+    <!-- Hour hand -->
+    <path
+        android:fillColor="#8B4513"
+        android:pathData="M64,64 L50,85"
+        android:strokeColor="#8B4513"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"/>
+    
+    <!-- Minute hand -->
+    <path
+        android:fillColor="#8B4513"
+        android:pathData="M64,64 L64,35"
+        android:strokeColor="#8B4513"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"/>
+    
+    <!-- Center dot -->
+    <path
+        android:fillColor="#8B4513"
+        android:pathData="M64,60 a4,4 0 1,0 0,8 a4,4 0 1,0 0,-8" />
+    
+    <!-- Alarm bells on top -->
+    <path
+        android:fillColor="#DAA520"
+        android:pathData="M45,15 C45,10 40,5 35,8 C30,11 32,18 37,20 C42,22 50,20 45,15 Z" />
+    
+    <path
+        android:fillColor="#DAA520"
+        android:pathData="M83,15 C83,10 88,5 93,8 C98,11 96,18 91,20 C86,22 78,20 83,15 Z" />
+    
+    <!-- Sound waves to indicate alarm/wake up -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FF6B35"
+        android:strokeWidth="2"
+        android:pathData="M85,25 Q95,35 85,45" />
+    
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FF6B35"
+        android:strokeWidth="2"
+        android:pathData="M43,25 Q33,35 43,45" />
+    
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FF6B35"
+        android:strokeWidth="1.5"
+        android:pathData="M90,30 Q97,37 90,44" />
+    
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FF6B35"
+        android:strokeWidth="1.5"
+        android:pathData="M38,30 Q31,37 38,44" />
+        
+    <!-- Navigation arrow overlay -->
+    <path
+        android:fillColor="#FF6B35"
+        android:pathData="M64,75 L58,85 L64,82 L70,85 Z" />
+</vector>

@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.example.gzingapp"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.example.gzingapp"
         minSdk = 30
-        targetSdk = 35
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
@@ -80,4 +80,7 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+
+    implementation("com.github.bumptech.glide:glide:4.15.1")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 }
