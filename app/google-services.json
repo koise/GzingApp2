@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "166205855721",
-    "project_id": "gzing-f7c85",
-    "storage_bucket": "gzing-f7c85.firebasestorage.app"
+    "project_number": "878586588692",
+    "project_id": "gzingapp-bac3d",
+    "storage_bucket": "gzingapp-bac3d.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:166205855721:android:66cab5607b431cb3c6dd78",
+        "mobilesdk_app_id": "1:878586588692:android:9fea15a7a40b343bdb0101",
         "android_client_info": {
-          "package_name": "com.example.gzing"
+          "package_name": "com.example.gzingapp"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyD-cms_EMolfw3Sipquv1SM4b3IiZMrj7I"
+          "current_key": "AIzaSyD2EPbODjmOdamnMQOF-XMoPRgKmVR-bzI"
         }
       ],
       "services": {
@@ -26,15 +26,15 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:166205855721:android:c368412a0c996393c6dd78",
+        "mobilesdk_app_id": "1:878586588692:android:9fea15a7a40b343bdb0102",
         "android_client_info": {
-          "package_name": "com.example.gzingapp"
+          "package_name": "com.example.gzingapp.debug"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyD-cms_EMolfw3Sipquv1SM4b3IiZMrj7I"
+          "current_key": "AIzaSyD2EPbODjmOdamnMQOF-XMoPRgKmVR-bzI"
         }
       ],
       "services": {

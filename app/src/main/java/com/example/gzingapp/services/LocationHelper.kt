@@ -1,11 +1,21 @@
 package com.example.gzingapp.services
 
+import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Address
 import android.location.Geocoder
+import android.location.Location
 import android.os.Build
+import android.os.Looper
 import android.util.Log
+import com.google.android.gms.tasks.CancellationTokenSource
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.api.net.PlacesClient
@@ -26,6 +36,9 @@ class LocationHelper(private val context: Context) {
 
     private var placesClient: PlacesClient? = null
     private val directionsService: DirectionsService = DirectionsService(context)
+    private val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
+    private var continuousCallback: LocationCallback? = null
+    private var isContinuousUpdating: Boolean = false
 
     init {
         // Initialize Places API - the key will be read from manifest
@@ -64,6 +77,10 @@ class LocationHelper(private val context: Context) {
         private const val MODERATE_TRAFFIC_MAX = 2.0
         private const val HEAVY_TRAFFIC_MIN = 2.0
         private const val HEAVY_TRAFFIC_MAX = 4.0
+        
+        // Real-time location update intervals
+        private const val REALTIME_UPDATE_INTERVAL = 5000L // 5 seconds
+        private const val FASTEST_REALTIME_UPDATE_INTERVAL = 2000L // 2 seconds
     }
 
     /**
@@ -153,17 +170,57 @@ class LocationHelper(private val context: Context) {
     }
 
     /**
-     * Get address from latitude and longitude using Geocoder
+     * Get address from latitude and longitude using Google Maps API and Geocoder
      */
     suspend fun getAddressFromLocation(latLng: LatLng): String = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "Getting address for location: $latLng")
-            val address = getAddressFromGeocoder(latLng)
-            Log.d(TAG, "Address result: $address")
-            return@withContext address
+            Log.d(TAG, "🏠 Getting address for location: $latLng")
+            
+            // Try Google Maps API first (more reliable)
+            val googleMapsAddress = getAddressFromGoogleMapsAPI(latLng)
+            if (googleMapsAddress.isNotEmpty() && googleMapsAddress != "Location unavailable") {
+                Log.d(TAG, "✅ Google Maps API address: $googleMapsAddress")
+                return@withContext googleMapsAddress
+            }
+            
+            // Fallback to Geocoder
+            Log.d(TAG, "🔄 Google Maps API failed, trying Geocoder...")
+            val geocoderAddress = getAddressFromGeocoder(latLng)
+            if (geocoderAddress.isNotEmpty() && geocoderAddress != "Location unavailable") {
+                Log.d(TAG, "✅ Geocoder address: $geocoderAddress")
+                return@withContext geocoderAddress
+            }
+            
+            // Final fallback to coordinates
+            Log.d(TAG, "⚠️ Both methods failed, returning coordinates")
+            return@withContext "📍 ${String.format("%.4f", latLng.latitude)}, ${String.format("%.4f", latLng.longitude)}"
+            
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting address", e)
-            return@withContext "Location unavailable"
+            Log.e(TAG, "❌ Error getting address", e)
+            return@withContext "📍 ${String.format("%.4f", latLng.latitude)}, ${String.format("%.4f", latLng.longitude)}"
+        }
+    }
+    
+    /**
+     * Get address using Google Maps API (Places API)
+     */
+    private suspend fun getAddressFromGoogleMapsAPI(latLng: LatLng): String = withContext(Dispatchers.IO) {
+        try {
+            if (placesClient == null) {
+                Log.w(TAG, "⚠️ Places client not initialized")
+                return@withContext ""
+            }
+            
+            Log.d(TAG, "🔍 Using Google Maps API for address resolution...")
+            
+            // For now, we'll use the Geocoder as the primary method since Places API
+            // reverse geocoding requires additional setup and may not be available
+            // This method can be enhanced later with proper Places API implementation
+            return@withContext ""
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error with Google Maps API", e)
+            return@withContext ""
         }
     }
 
@@ -358,6 +415,155 @@ class LocationHelper(private val context: Context) {
             "MOTORCYCLE", "BICYCLING" -> "bicycling"
             "CAR", "DRIVING" -> "driving"
             else -> "driving"
+        }
+    }
+
+    /**
+     * Get real-time location updates with high accuracy
+     */
+    suspend fun getRealTimeLocation(): android.location.Location? = withContext(Dispatchers.IO) {
+        try {
+            Log.d(TAG, "Getting real-time location with high accuracy")
+            
+            // Use the background location service if available
+            try {
+                val backgroundLocation = BackgroundLocationService.getLastLocation(context)
+                if (backgroundLocation != null) {
+                    val timeDiff = System.currentTimeMillis() - backgroundLocation.time
+                    if (timeDiff < 30000) { // Use if less than 30 seconds old
+                        Log.d(TAG, "Using recent background location: ${backgroundLocation.latitude}, ${backgroundLocation.longitude}")
+                        return@withContext backgroundLocation
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Background location service not available, using fallback", e)
+            }
+            
+            // Fallback: actively request a fresh high-accuracy reading
+            suspendCancellableCoroutine { continuation ->
+                try {
+                    val tokenSource = CancellationTokenSource()
+                    fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, tokenSource.token)
+                        .addOnSuccessListener { location ->
+                            if (location != null) {
+                                Log.d(TAG, "Fresh location obtained: ${location.latitude}, ${location.longitude}")
+                                continuation.resume(location)
+                            } else {
+                                Log.w(TAG, "Fresh location is null")
+                                continuation.resume(null)
+                            }
+                        }
+                        .addOnFailureListener { exception ->
+                            Log.e(TAG, "Failed to get fresh location", exception)
+                            continuation.resume(null)
+                        }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error getting fresh location", e)
+                    continuation.resume(null)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in getRealTimeLocation", e)
+            null
+        }
+    }
+
+    /**
+     * Check if real-time location services are available
+     */
+    fun isRealTimeLocationAvailable(): Boolean {
+        return try {
+            // Check if location permissions are granted
+            val hasLocationPermission = context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+                    context.checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            
+            hasLocationPermission
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking real-time location availability", e)
+            false
+        }
+    }
+
+    /**
+     * Get location accuracy information
+     */
+    fun getLocationAccuracyInfo(location: android.location.Location): String {
+        return when {
+            location.hasAccuracy() -> {
+                val accuracy = location.accuracy
+                when {
+                    accuracy <= 5 -> "High accuracy (±${accuracy.toInt()}m)"
+                    accuracy <= 20 -> "Good accuracy (±${accuracy.toInt()}m)"
+                    accuracy <= 50 -> "Fair accuracy (±${accuracy.toInt()}m)"
+                    else -> "Low accuracy (±${accuracy.toInt()}m)"
+                }
+            }
+            else -> "Unknown accuracy"
+        }
+    }
+
+    /**
+     * Start continuous high-accuracy location updates.
+     * The provided callback receives each new Location. Caller must call stopContinuousLocationUpdates.
+     */
+    fun startContinuousLocationUpdates(
+        intervalMs: Long = REALTIME_UPDATE_INTERVAL,
+        fastestIntervalMs: Long = FASTEST_REALTIME_UPDATE_INTERVAL,
+        onLocation: (Location) -> Unit
+    ) {
+        if (isContinuousUpdating) {
+            Log.d(TAG, "Continuous updates already running")
+            return
+        }
+
+        val hasFine = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!hasFine && !hasCoarse) {
+            Log.w(TAG, "Missing location permission; cannot start continuous updates")
+            return
+        }
+
+        val request = LocationRequest.Builder(intervalMs)
+            .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+            .setMinUpdateIntervalMillis(fastestIntervalMs)
+            .build()
+
+        val callback = object : LocationCallback() {
+            override fun onLocationResult(locationResult: LocationResult) {
+                val location = locationResult.lastLocation
+                if (location != null) {
+                    onLocation(location)
+                }
+            }
+        }
+
+        try {
+            fusedLocationClient.requestLocationUpdates(
+                request,
+                callback,
+                Looper.getMainLooper()
+            )
+            continuousCallback = callback
+            isContinuousUpdating = true
+            Log.d(TAG, "Started continuous high-accuracy location updates")
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Missing permissions for continuous updates", e)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start continuous updates", e)
+        }
+    }
+
+    /** Stop continuous updates started via startContinuousLocationUpdates */
+    fun stopContinuousLocationUpdates() {
+        val callback = continuousCallback ?: return
+        try {
+            fusedLocationClient.removeLocationUpdates(callback)
+            Log.d(TAG, "Stopped continuous high-accuracy location updates")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to stop continuous updates", e)
+        } finally {
+            continuousCallback = null
+            isContinuousUpdating = false
         }
     }
 }

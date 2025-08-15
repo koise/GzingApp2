@@ -22,6 +22,7 @@ import com.example.gzingapp.models.MultiPointRoute
 import com.example.gzingapp.models.RoutePoint
 import com.example.gzingapp.services.LocationHelper
 import com.example.gzingapp.services.PlacesService
+import com.example.gzingapp.services.RouteStorageService
 import com.example.gzingapp.services.SessionManager
 import com.example.gzingapp.ui.auth.LoginActivity
 import com.example.gzingapp.ui.dashboard.DashboardActivity
@@ -56,6 +57,7 @@ class RoutePlannerActivity : AppCompatActivity(), NavigationView.OnNavigationIte
     private lateinit var sessionManager: SessionManager
     private lateinit var placesService: PlacesService
     private lateinit var locationHelper: LocationHelper
+    private lateinit var routeStorageService: RouteStorageService
     
     private lateinit var routePointAdapter: RoutePointAdapter
     private lateinit var placeSelectableAdapter: PlaceSelectableAdapter
@@ -71,6 +73,12 @@ class RoutePlannerActivity : AppCompatActivity(), NavigationView.OnNavigationIte
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_route_planner)
 
+        // Initialize services FIRST before UI setup
+        sessionManager = SessionManager(this)
+        placesService = PlacesService(this)
+        locationHelper = LocationHelper(this)
+        routeStorageService = RouteStorageService(this)
+
         initializeViews()
         setupToolbar()
         setupNavigationDrawer()
@@ -80,17 +88,13 @@ class RoutePlannerActivity : AppCompatActivity(), NavigationView.OnNavigationIte
         setupSwitches()
         setupFAB()
 
-        sessionManager = SessionManager(this)
-        placesService = PlacesService(this)
-        locationHelper = LocationHelper(this)
-
-        // Check if user is logged in
-        if (!sessionManager.isLoggedIn()) {
-            Log.d(TAG, "User not logged in, redirecting to login")
+        // Check if user has an active session (either guest or authenticated)
+        if (sessionManager.needsAuthentication()) {
+            Log.d(TAG, "No active session found, redirecting to login")
             navigateToLogin()
             return
         } else {
-            Log.d(TAG, "User is logged in, proceeding with Route Planner activity")
+            Log.d(TAG, "Active session found")
         }
 
         loadAvailablePlaces()
@@ -128,15 +132,10 @@ class RoutePlannerActivity : AppCompatActivity(), NavigationView.OnNavigationIte
 
         navigationView.setNavigationItemSelectedListener(this)
         
-        // Hide logout option for guest users
-        updateNavigationMenuForGuest()
+        // Setup navigation menu
     }
     
-    private fun updateNavigationMenuForGuest() {
-        val menu = navigationView.menu
-        val logoutItem = menu.findItem(R.id.menu_logout)
-        logoutItem?.isVisible = !sessionManager.isAnonymous()
-    }
+
 
     private fun setupBottomNavigation() {
         try {
@@ -252,7 +251,7 @@ class RoutePlannerActivity : AppCompatActivity(), NavigationView.OnNavigationIte
 
     private fun setupFAB() {
         fabStartRoute.setOnClickListener {
-            startMultiPointRoute()
+            showRouteActionDialog()
         }
     }
 
@@ -442,6 +441,78 @@ class RoutePlannerActivity : AppCompatActivity(), NavigationView.OnNavigationIte
         fabStartRoute.visibility = if (pointCount > 0) View.VISIBLE else View.GONE
     }
 
+    private fun showRouteActionDialog() {
+        if (currentRoute.points.isEmpty()) {
+            Toast.makeText(this, "Please add at least one destination", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+        builder.setTitle("Route Actions")
+        builder.setMessage("What would you like to do with this route?\n\n${currentRoute.getRouteDescription()}")
+        
+        builder.setPositiveButton("Start Navigation") { _, _ ->
+            startMultiPointRoute()
+        }
+        
+        builder.setNeutralButton("Save Route") { _, _ ->
+            showSaveRouteDialog()
+        }
+        
+        builder.setNegativeButton("Cancel", null)
+        builder.create().show()
+    }
+    
+    private fun showSaveRouteDialog() {
+        val input = android.widget.EditText(this)
+        input.hint = "Enter route name (optional)"
+        input.setText(currentRoute.getRouteDescription())
+        
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+        builder.setTitle("Save Route")
+        builder.setMessage("Give your route a name:")
+        builder.setView(input)
+        
+        builder.setPositiveButton("Save") { _, _ ->
+            val routeName = input.text.toString().trim()
+            saveRoute(routeName)
+        }
+        
+        builder.setNegativeButton("Cancel", null)
+        builder.create().show()
+    }
+    
+    private fun saveRoute(routeName: String = "") {
+        lifecycleScope.launch {
+            try {
+                val result = routeStorageService.saveRoute(currentRoute, routeName)
+                
+                runOnUiThread {
+                    if (result.isSuccess) {
+                        val savedName = if (routeName.isNotBlank()) routeName else currentRoute.getRouteDescription()
+                        Toast.makeText(this@RoutePlannerActivity, "Route saved: $savedName", Toast.LENGTH_LONG).show()
+                        
+                        // Optionally ask if they want to start navigation now
+                        androidx.appcompat.app.AlertDialog.Builder(this@RoutePlannerActivity)
+                            .setTitle("Route Saved")
+                            .setMessage("Route saved successfully! Would you like to start navigation now?")
+                            .setPositiveButton("Start Navigation") { _, _ ->
+                                startMultiPointRoute()
+                            }
+                            .setNegativeButton("Stay Here", null)
+                            .show()
+                    } else {
+                        Toast.makeText(this@RoutePlannerActivity, "Failed to save route: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    Toast.makeText(this@RoutePlannerActivity, "Error saving route: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
     private fun startMultiPointRoute() {
         if (currentRoute.points.isEmpty()) {
             Toast.makeText(this, "Please add at least one destination", Toast.LENGTH_SHORT).show()
@@ -475,32 +546,16 @@ class RoutePlannerActivity : AppCompatActivity(), NavigationView.OnNavigationIte
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.menu_account -> {
-                if (sessionManager.isAnonymous()) {
-                    Toast.makeText(this, "Please sign in to access your account", Toast.LENGTH_LONG).show()
-                    val intent = Intent(this, com.example.gzingapp.ui.auth.LoginActivity::class.java)
-                    startActivity(intent)
-                } else {
-                    startActivity(Intent(this, com.example.gzingapp.ui.profile.ProfileActivity::class.java))
-                }
+                startActivity(Intent(this, com.example.gzingapp.ui.profile.ProfileActivity::class.java))
             }
             R.id.menu_settings -> {
                 startActivity(Intent(this, SettingsActivity::class.java))
             }
             R.id.menu_history -> {
-                if (sessionManager.isAnonymous()) {
-                    Toast.makeText(this, "Please sign in to view your navigation history", Toast.LENGTH_LONG).show()
-                    val intent = Intent(this, com.example.gzingapp.ui.auth.LoginActivity::class.java)
-                    startActivity(intent)
-                } else {
-                    startActivity(Intent(this, com.example.gzingapp.ui.history.HistoryActivity::class.java))
-                }
+                startActivity(Intent(this, com.example.gzingapp.ui.history.HistoryActivity::class.java))
             }
             R.id.menu_logout -> {
-                if (!sessionManager.isAnonymous()) {
-                    performLogout()
-                } else {
-                    Toast.makeText(this, "Already using guest mode", Toast.LENGTH_SHORT).show()
-                }
+                performLogout()
             }
         }
         drawerLayout.closeDrawer(GravityCompat.START)

@@ -47,8 +47,8 @@ class PlacesAdapter(
         holder.location.text = place.location
 
         // Set rating if available
-        if (place.rating != null) {
-            val ratingText = "★ ${String.format("%.1f", place.rating)}"
+        val ratingText = place.getFormattedRating()
+        if (ratingText != null) {
             holder.rating.text = ratingText
             holder.rating.visibility = View.VISIBLE
         } else {
@@ -56,12 +56,8 @@ class PlacesAdapter(
         }
 
         // Set distance if available
-        if (place.distance != null) {
-            val distanceText = if (place.distance < 1.0) {
-                "${(place.distance * 1000).toInt()} m"
-            } else {
-                String.format("%.1f km", place.distance)
-            }
+        val distanceText = place.getFormattedDistance()
+        if (distanceText != null) {
             holder.distance.text = distanceText
             holder.distance.visibility = View.VISIBLE
         } else {
@@ -114,28 +110,44 @@ class PlacesAdapter(
         val context = holder.itemView.context
 
         if (!place.photoUrl.isNullOrEmpty()) {
-            // Load from URL if available
+            // Load from URL if available with enhanced options
             Glide.with(context)
                 .load(place.photoUrl)
                 .apply(RequestOptions()
                     .placeholder(getCategoryIcon(place.category))
                     .error(getCategoryIcon(place.category))
                     .centerCrop()
-                    .transform(RoundedCorners(16))
+                    .transform(RoundedCorners(20))
+                    .timeout(10000) // 10 second timeout
                 )
+                .transition(com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade(300))
+                .into(holder.image)
+        } else if (place.imageRes != 0 && place.imageRes != R.drawable.ic_places) {
+            // Use specific image resource if available
+            Glide.with(context)
+                .load(place.imageRes)
+                .apply(RequestOptions()
+                    .centerCrop()
+                    .transform(RoundedCorners(20))
+                )
+                .transition(com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade(200))
                 .into(holder.image)
         } else {
-            // Use category-specific icon
+            // Use enhanced category-specific placeholder
             val iconRes = getCategoryIcon(place.category)
 
             Glide.with(context)
                 .load(iconRes)
                 .apply(RequestOptions()
-                    .centerInside()
-                    .transform(RoundedCorners(16))
+                    .centerCrop()
+                    .transform(RoundedCorners(20))
                 )
+                .transition(com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade(200))
                 .into(holder.image)
         }
+
+        // Add subtle shadow effect to image container
+        holder.image.elevation = 4f
     }
 
     override fun getItemCount(): Int = places.size
@@ -152,16 +164,16 @@ class PlacesAdapter(
     }
 
     /**
-     * Get category-specific icon
+     * Get category-specific enhanced placeholder background
      */
     private fun getCategoryIcon(category: String): Int {
         return when (category.lowercase()) {
-            "restaurant", "food", "food & dining" -> R.drawable.ic_restaurant
-            "shopping mall", "store", "shopping" -> R.drawable.ic_shopping
+            "restaurant", "food", "food & dining" -> R.drawable.bg_restaurant_placeholder
+            "shopping mall", "store", "shopping", "shopping center" -> R.drawable.bg_shopping_placeholder
             "healthcare", "hospital", "pharmacy" -> R.drawable.ic_hospital
             "education", "school", "university" -> R.drawable.ic_school
-            "recreation", "park", "tourist attraction" -> R.drawable.ic_park
-            "religious site", "church", "place of worship" -> R.drawable.ic_church
+            "recreation", "park", "tourist attraction", "waterfall", "art gallery", "museum" -> R.drawable.bg_attraction_placeholder
+            "religious site", "church", "place of worship", "cathedral" -> R.drawable.bg_church_placeholder
             "gas station" -> R.drawable.ic_gas_station
             "financial", "bank", "atm" -> R.drawable.ic_bank
             "accommodation", "lodging", "hotel" -> R.drawable.ic_hotel

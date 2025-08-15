@@ -154,7 +154,7 @@ class NavigationHelper(private val context: Context) {
         onFailure: ((Exception) -> Unit)? = null,
         onLoadingStateChanged: ((Boolean) -> Unit)? = null,
         userId: String? = null,
-        sessionType: String = if (userId != null) "user" else "guest"
+        sessionType: String = "user"
     ) {
         Log.d(TAG, "Stopping navigation - Session type: $sessionType")
 
@@ -313,7 +313,7 @@ class NavigationHelper(private val context: Context) {
     fun handleNavigationArrival(
         destination: LatLng? = null,
         userId: String? = null,
-        sessionType: String = if (userId != null) "user" else "guest"
+        sessionType: String = "user"
     ) {
         Log.d(TAG, "Handling navigation arrival - Session type: $sessionType, UserId: $userId")
 
@@ -374,7 +374,7 @@ class NavigationHelper(private val context: Context) {
      */
     fun endNavigationAfterArrival(
         userId: String? = null,
-        sessionType: String = if (userId != null) "user" else "guest"
+        sessionType: String = "user"
     ) {
         Log.d(TAG, "Ending navigation after arrival - Session type: $sessionType, UserId: $userId")
 

@@ -1,0 +1,43 @@
+{
+  "name": "gzingapp-firebase-config",
+  "version": "1.0.0",
+  "description": "Firebase configuration and automation for GzingApp",
+  "scripts": {
+    "firebase:init": "firebase login && firebase use --add",
+    "firebase:deploy:rules": "firebase deploy --only firestore:rules",
+    "firebase:deploy:indexes": "firebase deploy --only firestore:indexes",
+    "firebase:deploy:storage": "firebase deploy --only storage",
+    "firebase:deploy:all": "firebase deploy --only firestore:rules,firestore:indexes,storage",
+    "firebase:emulator:start": "firebase emulators:start",
+    "firebase:emulator:ui": "firebase emulators:start --only firestore,auth,storage",
+    "firebase:backup:rules": "firebase firestore:rules get > firestore.rules.backup",
+    "firebase:backup:indexes": "firebase firestore:indexes list > firestore.indexes.backup.json",
+    "firebase:test:rules": "firebase emulators:exec --only firestore 'npm run test:firestore'",
+    "test:firestore": "echo 'Add your Firestore rules tests here'"
+  },
+  "devDependencies": {
+    "firebase-tools": "^13.0.0"
+  },
+  "keywords": [
+    "firebase",
+    "android",
+    "firestore",
+    "automation"
+  ]
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

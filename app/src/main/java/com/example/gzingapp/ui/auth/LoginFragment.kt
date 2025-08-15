@@ -93,7 +93,7 @@ class LoginFragment : Fragment() {
                         sessionManager.saveSession(
                             userId = user.uid,
                             userName = displayName,
-                            isAnonymous = false
+
                         )
                         
                         // Navigate to dashboard

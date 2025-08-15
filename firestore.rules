@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can only read and write their own data
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    
+    // Emergency contacts are nested under users
+    match /emergency_contacts/{uid}/{contactId} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    
+    // Optional: Add other collections as needed
+    match /user_sessions/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    
+    // Global settings (readable by all authenticated users)
+    match /app_settings/{document} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only admins should write to this
+    }
+    
+    // Default rule: deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

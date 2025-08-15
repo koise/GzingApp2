@@ -30,27 +30,9 @@ class AuthService {
         return auth.currentUser
     }
     
-    // Check if user is anonymous
-    fun isUserAnonymous(): Boolean {
-        return auth.currentUser?.isAnonymous ?: false
-    }
+
     
-    // Sign in anonymously
-    suspend fun signInAnonymously(): Result<FirebaseUser> {
-        return try {
-            val result = auth.signInAnonymously().await()
-            val user = result.user
-            if (user != null) {
-                // Just return success without creating a Firestore document
-                Result.success(user)
-            } else {
-                Result.failure(Exception("Failed to sign in anonymously"))
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error signing in anonymously", e)
-            Result.failure(e)
-        }
-    }
+
     
     // Sign up with email and password
     suspend fun signUp(
@@ -87,8 +69,7 @@ class AuthService {
                     lastName = lastName,
                     email = email,
                     phoneNumber = phoneNumber,
-                    username = username,
-                    isAnonymous = false
+                    username = username
                 )
                 
                 // Save the user to the database
@@ -183,8 +164,7 @@ class AuthService {
                 lastName = lastName,
                 email = email,
                 phoneNumber = phoneNumber,
-                username = username,
-                isAnonymous = false
+                username = username
             )
             
             // Save the user to the database

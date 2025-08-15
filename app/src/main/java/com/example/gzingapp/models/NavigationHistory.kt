@@ -48,6 +48,8 @@ data class NavigationHistory(
             (completedStops * 100) / totalStops
         } else 0
     }
+    
+    companion object
 }
 
 enum class NavigationStatus {

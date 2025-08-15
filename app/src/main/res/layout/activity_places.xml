@@ -31,25 +31,28 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_margin="16dp"
-                app:cardCornerRadius="24dp"
-                app:cardElevation="6dp"
-                app:strokeWidth="0dp">
+                android:layout_marginHorizontal="20dp"
+                android:layout_marginVertical="12dp"
+                app:cardCornerRadius="28dp"
+                app:cardElevation="2dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="@color/divider_color">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:padding="12dp"
-                    android:gravity="center_vertical">
+                    android:padding="8dp"
+                    android:gravity="center_vertical"
+                    android:background="@color/light_gray">
 
                     <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
                         android:src="@drawable/ic_search"
-                        android:layout_marginStart="8dp"
-                        android:layout_marginEnd="12dp"
-                        android:alpha="0.6" />
+                        android:layout_marginStart="12dp"
+                        android:layout_marginEnd="8dp"
+                        android:tint="@color/text_secondary" />
 
                     <androidx.appcompat.widget.SearchView
                         android:id="@+id/searchView"
@@ -57,9 +60,10 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         app:iconifiedByDefault="false"
-                        app:queryHint="Find restaurants, shops, attractions..."
+                        app:queryHint="Discover places in Antipolo &amp; Marikina..."
                         app:searchIcon="@null"
-                        app:closeIcon="@drawable/ic_close" />
+                        app:closeIcon="@drawable/ic_close"
+                        android:queryBackground="@android:color/transparent" />
 
                 </LinearLayout>
 
@@ -83,55 +87,96 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:paddingHorizontal="20dp"
+                    android:paddingVertical="16dp">
 
-                    <!-- Quick Categories -->
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Quick Access"
-                        android:textSize="18sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/text_primary"
-                        android:layout_marginBottom="12dp" />
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/categoriesRecyclerView"
+                    <!-- Header Section with Route Planner -->
+                    <com.google.android.material.card.MaterialCardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="24dp"
-                        android:orientation="horizontal"
-                        tools:itemCount="4" />
+                        android:layout_marginBottom="20dp"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="3dp"
+                        app:strokeWidth="0dp"
+                        app:cardBackgroundColor="@color/primary_beige">
 
-                    <!-- Places Section -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:padding="16dp">
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Plan Your Journey"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/primary_brown" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Create multi-point routes easily"
+                                    android:textSize="12sp"
+                                    android:textColor="@color/text_secondary"
+                                    android:layout_marginTop="2dp" />
+
+                            </LinearLayout>
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnRoutePlanner"
+                                style="@style/Widget.Material3.Button.Icon"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Create Route"
+                                android:textColor="@color/white"
+                                android:backgroundTint="@color/primary_brown"
+                                app:icon="@drawable/ic_routes"
+                                app:iconTint="@color/white"
+                                app:cornerRadius="20dp" />
+
+                        </LinearLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- Places Section Header -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:layout_marginBottom="12dp">
+                        android:layout_marginBottom="16dp">
 
                         <TextView
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Popular Places"
-                            android:textSize="18sp"
+                            android:text="Discover Places"
+                            android:textSize="20sp"
                             android:textStyle="bold"
                             android:textColor="@color/text_primary" />
 
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnRoutePlanner"
-                            style="@style/Widget.Material3.Button.TextButton.Icon"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Multi-Route"
-                            android:textColor="@color/primary_brown"
-                            app:icon="@drawable/ic_routes"
-                            app:iconTint="@color/primary_brown" />
+                        <ImageView
+                            android:id="@+id/btnFilter"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_filter"
+                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:padding="6dp"
+                            android:tint="@color/primary_brown"
+                            android:contentDescription="Filter places" />
 
                     </LinearLayout>
 
+                    <!-- Places Grid -->
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/placesRecyclerView"
                         android:layout_width="match_parent"
@@ -148,16 +193,18 @@
 
 
 
-        <!-- Floating Action Button -->
+        <!-- Floating Action Button (Quick Map View) -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fabFilter"
+            android:id="@+id/fabMapView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|end"
-            android:layout_margin="16dp"
-            android:src="@drawable/ic_filter"
+            android:layout_margin="20dp"
+            android:layout_marginBottom="80dp"
+            android:src="@drawable/ic_map"
             app:backgroundTint="@color/primary_brown"
-            app:tint="@color/white" />
+            app:tint="@color/white"
+            android:elevation="8dp" />
 
         <!-- Bottom Navigation -->
         <com.google.android.material.bottomnavigation.BottomNavigationView
@@ -165,7 +212,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom"
-            android:background="@color/white"
+            android:background="@color/light_beige"
             app:menu="@menu/menu_bottom_navigation"
             app:itemIconTint="@color/bottom_nav_icon_color"
             app:itemTextColor="@color/bottom_nav_item_color"

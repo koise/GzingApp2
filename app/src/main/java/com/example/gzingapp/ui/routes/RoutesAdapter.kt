@@ -29,9 +29,17 @@ class RoutesAdapter(
         val route = routes[position]
 
         holder.title.text = route.title
-        holder.description.text = route.description
+        // Use the new A->B->C->D route description
+        holder.description.text = route.detailedPointsDescription
         holder.duration.text = route.duration
         holder.distance.text = route.distance
+
+        // Add visual indicator for active routes
+        if (route.isActive) {
+            holder.title.setTextColor(holder.itemView.context.getColor(android.R.color.holo_green_dark))
+        } else {
+            holder.title.setTextColor(holder.itemView.context.getColor(android.R.color.black))
+        }
 
         holder.itemView.setOnClickListener {
             onRouteClick(route)

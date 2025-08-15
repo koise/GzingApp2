@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    
+    <!-- Background circle -->
+    <path android:fillColor="#F5F5DC"
+          android:pathData="M24,4 C35.05,4 44,12.95 44,24 C44,35.05 35.05,44 24,44 C12.95,44 4,35.05 4,24 C4,12.95 12.95,4 24,4 Z" />
+    
+    <!-- Border -->
+    <path android:fillColor="@android:color/transparent"
+          android:strokeColor="#E8E4C9"
+          android:strokeWidth="2"
+          android:pathData="M24,6 C33.94,6 42,14.06 42,24 C42,33.94 33.94,42 24,42 C14.06,42 6,33.94 6,24 C6,14.06 14.06,6 24,6 Z" />
+    
+    <!-- Moon -->
+    <path android:fillColor="#654321"
+          android:pathData="M12,14 C12,11 11,8 10,9 C9,10 9,12 10,13 C11,14 12,14 12,11 Z" />
+    
+    <!-- Sleeping person head -->
+    <path android:fillColor="#A0522D"
+          android:pathData="M24,18 C28,18 31,21 31,25 C31,29 28,32 24,32 C20,32 17,29 17,25 C17,21 20,18 24,18 Z" />
+    
+    <!-- Hair -->
+    <path android:fillColor="#654321"
+          android:pathData="M24,16 C28.5,16 32,19.5 32,24 C32,24.5 31.5,25 31,25 C28,25 26.5,24 24,24 C21.5,24 20,25 17,25 C16.5,25 16,24.5 16,24 C16,19.5 19.5,16 24,16 Z" />
+    
+    <!-- Eyes -->
+    <path android:fillColor="#654321"
+          android:strokeColor="#654321"
+          android:strokeWidth="1"
+          android:pathData="M20,23 L22,23" />
+    <path android:fillColor="#654321"
+          android:strokeColor="#654321"
+          android:strokeWidth="1"
+          android:pathData="M26,23 L28,23" />
+    
+    <!-- Smile -->
+    <path android:fillColor="@android:color/transparent"
+          android:strokeColor="#654321"
+          android:strokeWidth="1.2"
+          android:pathData="M21,27 Q24,28 27,27" />
+    
+    <!-- Pillow -->
+    <path android:fillColor="#FFF8DC"
+          android:pathData="M14,30 C14,28 15,27 17,27 L31,27 C33,27 34,28 34,30 L34,34 C34,36 33,37 31,37 L17,37 C15,37 14,36 14,34 Z" />
+    
+    <!-- Body -->
+    <path android:fillColor="#8B4A2B"
+          android:pathData="M16,34 Q20,32 24,34 Q28,36 32,34 L32,38 C32,39 31,40 30,40 L18,40 C17,40 16,39 16,38 Z" />
+    
+    <!-- Sleep Z -->
+    <path android:fillColor="#757575"
+          android:pathData="M35,12 L37,12 L35,15 L37,15 M35,12 L37,15"
+          android:strokeColor="#757575"
+          android:strokeWidth="0.8" />
+    
+    <!-- Star -->
+    <path android:fillColor="#FFC107"
+          android:pathData="M8,8 L8.3,9 L9,9 L8.5,9.4 L8.7,10 L8,9.6 L7.3,10 L7.5,9.4 L7,9 L7.7,9 Z" />
+    
+</vector>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

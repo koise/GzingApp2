@@ -15,6 +15,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.gzingapp.R
+import com.example.gzingapp.services.RouteStorageService
 import com.example.gzingapp.services.SessionManager
 import com.example.gzingapp.ui.auth.LoginActivity
 import com.example.gzingapp.ui.dashboard.DashboardActivity
@@ -33,29 +34,30 @@ class RoutesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
     private lateinit var bottomNavigation: BottomNavigationView
     private lateinit var routesRecyclerView: RecyclerView
     private lateinit var sessionManager: SessionManager
+    private lateinit var routeStorageService: RouteStorageService
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_routes)
 
         try {
+            // Initialize services FIRST before UI setup
+            sessionManager = SessionManager(this)
+            routeStorageService = RouteStorageService(this)
+
             initializeViews()
             setupToolbar()
             setupNavigationDrawer()
             setupBottomNavigation()
             setupRecyclerView()
 
-            sessionManager = SessionManager(this)
-
-            // Check if user is logged in
-            if (!sessionManager.isLoggedIn()) {
-                Log.d("RoutesActivity", "User not logged in, redirecting to login")
+            // Check if user has an active session (either guest or authenticated)
+            if (sessionManager.needsAuthentication()) {
+                Log.d("RoutesActivity", "No active session found, redirecting to login")
                 navigateToLogin()
                 return
             } else {
-                Log.d("RoutesActivity", "User is logged in, proceeding with Routes activity")
-                // Update UI based on user type (guest or registered)
-                updateNavigationMenuForGuest()
+                Log.d("RoutesActivity", "Active session found")
             }
         } catch (e: Exception) {
             Log.e("RoutesActivity", "Error in onCreate", e)
@@ -94,15 +96,10 @@ class RoutesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
         toggle.syncState()
         navigationView.setNavigationItemSelectedListener(this)
         
-        // Hide logout option for guest users
-        updateNavigationMenuForGuest()
+        // Setup navigation menu
     }
     
-    private fun updateNavigationMenuForGuest() {
-        val menu = navigationView.menu
-        val logoutItem = menu.findItem(R.id.menu_logout)
-        logoutItem?.isVisible = !sessionManager.isAnonymous()
-    }
+
 
     private fun setupBottomNavigation() {
         try {
@@ -162,34 +159,201 @@ class RoutesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
 
     private fun setupRecyclerView() {
         routesRecyclerView.layoutManager = LinearLayoutManager(this)
-
-        // Sample data for routes - you can replace with actual data
-        val sampleRoutes = listOf(
-            RouteItem("Home to Work", "Antipolo to Marikina", "25 min", "5.2 km"),
-            RouteItem("Work to Mall", "Marikina to SM Marikina", "8 min", "1.8 km"),
-            RouteItem("Home to School", "Antipolo to University", "30 min", "7.1 km"),
-            RouteItem("Mall to Restaurant", "SM Marikina to Restaurant", "12 min", "2.5 km")
+        loadAndDisplayRoutes()
+    }
+    
+    private fun loadAndDisplayRoutes() {
+        lifecycleScope.launch {
+            try {
+                // Load saved routes
+                val savedRoutes = routeStorageService.getSavedRoutesAsItems()
+                
+                // Load sample routes
+                val sampleRoutes = createSampleRoutes()
+                
+                // Combine saved routes (at the top) with sample routes
+                val allRoutes = savedRoutes + sampleRoutes
+                
+                runOnUiThread {
+                    val adapter = RoutesAdapter(allRoutes) { route ->
+                        // Handle route click - show route details with A->B->C->D pattern
+                        showRouteDetails(route)
+                    }
+                    
+                    routesRecyclerView.adapter = adapter
+                    
+                    if (savedRoutes.isNotEmpty()) {
+                        Toast.makeText(this@RoutesActivity, "Showing ${savedRoutes.size} saved routes and ${sampleRoutes.size} sample routes", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("RoutesActivity", "Error loading routes", e)
+                runOnUiThread {
+                    // Fallback to sample routes only
+                    val sampleRoutes = createSampleRoutes()
+                    val adapter = RoutesAdapter(sampleRoutes) { route ->
+                        showRouteDetails(route)
+                    }
+                    routesRecyclerView.adapter = adapter
+                }
+            }
+        }
+    }
+    
+    private fun createSampleRoutes(): List<RouteItem> {
+        // Import PlaceItem from models, not from ui.places
+        val antipoloCenter = com.example.gzingapp.models.PlaceItem(
+            id = "antipolo_center",
+            name = "Antipolo City Center", 
+            category = "City Center", 
+            location = "Antipolo City", 
+            address = "Antipolo City",
+            rating = 4.5f,
+            priceLevel = null,
+            isOpen = true,
+            photoUrl = null,
+            latLng = com.google.android.gms.maps.model.LatLng(14.5995, 121.1817),
+            imageRes = com.example.gzingapp.R.drawable.ic_places
+        )
+        
+        val smMarikina = com.example.gzingapp.models.PlaceItem(
+            id = "sm_marikina",
+            name = "SM Marikina", 
+            category = "Shopping Mall", 
+            location = "Marikina City", 
+            address = "Marikina City",
+            rating = 4.5f,
+            priceLevel = 2,
+            isOpen = true,
+            photoUrl = null,
+            latLng = com.google.android.gms.maps.model.LatLng(14.6408, 121.1078),
+            imageRes = com.example.gzingapp.R.drawable.ic_places
+        )
+        
+        val pintoArt = com.example.gzingapp.models.PlaceItem(
+            id = "pinto_art",
+            name = "Pinto Art Museum", 
+            category = "Art Gallery", 
+            location = "Antipolo City", 
+            address = "Antipolo City",
+            rating = 4.6f,
+            priceLevel = 2,
+            isOpen = true,
+            photoUrl = null,
+            latLng = com.google.android.gms.maps.model.LatLng(14.5639, 121.1906),
+            imageRes = com.example.gzingapp.R.drawable.ic_places
+        )
+        
+        val riverbanks = com.example.gzingapp.models.PlaceItem(
+            id = "riverbanks",
+            name = "Riverbanks Mall", 
+            category = "Shopping Center", 
+            location = "Marikina City", 
+            address = "Marikina City",
+            rating = 4.2f,
+            priceLevel = 2,
+            isOpen = true,
+            photoUrl = null,
+            latLng = com.google.android.gms.maps.model.LatLng(14.6298, 121.1028),
+            imageRes = com.example.gzingapp.R.drawable.ic_places
+        )
+        
+        val cathedral = com.example.gzingapp.models.PlaceItem(
+            id = "cathedral",
+            name = "Antipolo Cathedral", 
+            category = "Cathedral", 
+            location = "Antipolo City", 
+            address = "Antipolo City",
+            rating = 4.7f,
+            priceLevel = null,
+            isOpen = true,
+            photoUrl = null,
+            latLng = com.google.android.gms.maps.model.LatLng(14.5995, 121.1817),
+            imageRes = com.example.gzingapp.R.drawable.ic_places
         )
 
-        val adapter = RoutesAdapter(sampleRoutes) { route ->
-            // Handle route click
-            Toast.makeText(this, "Selected: ${route.title}", Toast.LENGTH_SHORT).show()
+        return listOf(
+            RouteItem(
+                id = "route_1",
+                title = "Daily Commute Route",
+                routePoints = listOf(
+                    com.example.gzingapp.models.RoutePoint(place = antipoloCenter, order = 0),
+                    com.example.gzingapp.models.RoutePoint(place = smMarikina, order = 1)
+                ),
+                duration = "25 min",
+                distance = "5.2 km",
+                isActive = false
+            ),
+            RouteItem(
+                id = "route_2", 
+                title = "Shopping & Art Tour",
+                routePoints = listOf(
+                    com.example.gzingapp.models.RoutePoint(place = smMarikina, order = 0),
+                    com.example.gzingapp.models.RoutePoint(place = pintoArt, order = 1),
+                    com.example.gzingapp.models.RoutePoint(place = riverbanks, order = 2)
+                ),
+                duration = "45 min",
+                distance = "12.8 km",
+                isActive = true
+            ),
+            RouteItem(
+                id = "route_3",
+                title = "Heritage & Faith Route", 
+                routePoints = listOf(
+                    com.example.gzingapp.models.RoutePoint(place = antipoloCenter, order = 0),
+                    com.example.gzingapp.models.RoutePoint(place = cathedral, order = 1),
+                    com.example.gzingapp.models.RoutePoint(place = pintoArt, order = 2),
+                    com.example.gzingapp.models.RoutePoint(place = riverbanks, order = 3)
+                ),
+                duration = "1h 15min",
+                distance = "18.5 km",
+                isActive = false
+            ),
+            RouteItem(
+                id = "route_4",
+                title = "Mall Hopping Route",
+                routePoints = listOf(
+                    com.example.gzingapp.models.RoutePoint(place = smMarikina, order = 0),
+                    com.example.gzingapp.models.RoutePoint(place = riverbanks, order = 1)
+                ),
+                duration = "12 min",
+                distance = "2.1 km",
+                isActive = false
+            )
+        )
+    }
+    
+    private fun showRouteDetails(route: RouteItem) {
+        val detailsMessage = buildString {
+            appendLine("Route: ${route.title}")
+            appendLine("Points: ${route.detailedPointsDescription}")
+            appendLine("Duration: ${route.duration}")
+            appendLine("Distance: ${route.distance}")
+            if (route.isActive) {
+                appendLine("Status: Currently Active")
+            }
         }
-
-        routesRecyclerView.adapter = adapter
+        
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Route Details")
+            .setMessage(detailsMessage)
+            .setPositiveButton("Start Route") { _, _ ->
+                startRoute(route)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+    
+    private fun startRoute(route: RouteItem) {
+        Toast.makeText(this, "Starting route: ${route.title}", Toast.LENGTH_LONG).show()
+        // TODO: Integrate with navigation system to start the multi-point route
+        // This would connect to the MultiPointRoute system and start navigation
     }
 
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.menu_account -> {
-                if (sessionManager.isAnonymous()) {
-                    // Redirect guest users to login for account access
-                    Toast.makeText(this, "Please sign in to access your account", Toast.LENGTH_LONG).show()
-                    val intent = Intent(this, LoginActivity::class.java)
-                    startActivity(intent)
-                } else {
-                    startActivity(Intent(this, com.example.gzingapp.ui.profile.ProfileActivity::class.java))
-                }
+                startActivity(Intent(this, com.example.gzingapp.ui.profile.ProfileActivity::class.java))
             }
             R.id.menu_settings -> {
                 startActivity(Intent(this, SettingsActivity::class.java))

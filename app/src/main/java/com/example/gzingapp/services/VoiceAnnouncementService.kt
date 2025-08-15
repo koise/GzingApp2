@@ -90,11 +90,12 @@ class VoiceAnnouncementService(private val context: Context) : TextToSpeech.OnIn
                 } else {
                     Log.e(TAG, "Failed to reinitialize TTS for arrival announcement")
                 }
-            }, 1000)
+            }, 1500) // Increased delay for better initialization
             return
         }
         
-        val message = "You have arrived at $destinationName"
+        val cleanDestinationName = getCleanLocationName(destinationName)
+        val message = "You have arrived at $cleanDestinationName"
         speak(message)
         Log.d(TAG, "Voice announcement triggered: $message")
         
@@ -106,8 +107,23 @@ class VoiceAnnouncementService(private val context: Context) : TextToSpeech.OnIn
      * General announcement method
      */
     fun announce(message: String) {
-        if (!isVoiceAnnouncementsEnabled() || !isInitialized) {
-            Log.d(TAG, "Voice announcements disabled or TTS not initialized")
+        if (!isVoiceAnnouncementsEnabled()) {
+            Log.d(TAG, "Voice announcements disabled in settings")
+            return
+        }
+        
+        if (!isInitialized) {
+            Log.w(TAG, "TTS not initialized, attempting to reinitialize for announce")
+            initTextToSpeech()
+            // Try again after initialization
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                if (isInitialized) {
+                    speak(message)
+                    Log.d(TAG, "Delayed voice announcement: $message")
+                } else {
+                    Log.e(TAG, "Failed to reinitialize TTS for general announcement")
+                }
+            }, 1500)
             return
         }
         
@@ -172,5 +188,55 @@ class VoiceAnnouncementService(private val context: Context) : TextToSpeech.OnIn
      */
     fun isAvailable(): Boolean {
         return isInitialized && textToSpeech != null
+    }
+    
+    /**
+     * Clean up location names for better voice announcements
+     */
+    private fun getCleanLocationName(destinationName: String): String {
+        return try {
+            when {
+                // Remove coordinates pattern like "14.123456, 121.789012" 
+                destinationName.matches(Regex("^\\d+\\.\\d+,\\s*\\d+\\.\\d+$")) -> {
+                    "your destination"
+                }
+                // Handle common destination names
+                destinationName.lowercase().contains("destination") -> "your destination"
+                destinationName.lowercase().contains("location") -> "your pinned location"
+                destinationName.lowercase().contains("selected") -> "your selected place"
+                // Remove long addresses by taking first significant part
+                destinationName.length > 40 -> {
+                    val parts = destinationName.split(",")
+                    val mainPart = parts.firstOrNull { part ->
+                        val trimmed = part.trim()
+                        trimmed.isNotBlank() && 
+                        !trimmed.matches(Regex("^\\d+$")) && // Skip pure numbers
+                        !trimmed.matches(Regex("^\\d{4}$")) && // Skip zip codes
+                        trimmed.length > 3
+                    }
+                    mainPart?.trim()?.take(30) ?: "your destination"
+                }
+                // Keep normal names as-is
+                else -> destinationName
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error cleaning destination name: $destinationName", e)
+            "your destination"
+        }
+    }
+    
+    /**
+     * Test voice announcements (for settings testing)
+     */
+    fun testArrivalAnnouncement() {
+        Log.d(TAG, "Testing arrival announcement")
+        if (!isVoiceAnnouncementsEnabled()) {
+            Log.d(TAG, "Voice announcements disabled - cannot test")
+            return
+        }
+        
+        val testMessage = "This is a test arrival announcement. You have reached your destination."
+        speak(testMessage)
+        Log.d(TAG, "Test announcement played: $testMessage")
     }
 }

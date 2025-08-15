@@ -101,7 +101,7 @@ class SignupFragment : Fragment() {
         // Check if user is anonymous and convert account
         lifecycleScope.launch {
             try {
-                val result = if (sessionManager.isAnonymous() && authService.isUserLoggedIn()) {
+                val result = if (authService.isUserLoggedIn()) {
                     // Link anonymous user with real account
                     authService.linkAnonymousUser(
                         firstName, lastName, email, phoneNumber, username, password
@@ -120,7 +120,7 @@ class SignupFragment : Fragment() {
                         sessionManager.saveSession(
                             userId = user.uid,
                             userName = "$firstName $lastName",
-                            isAnonymous = false
+
                         )
                         
                         // Navigate to dashboard

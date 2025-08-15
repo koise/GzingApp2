@@ -19,6 +19,7 @@ class NavigationHistoryService(private val context: Context) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     
     private val gson = Gson()
+    private val firebaseHistoryService = FirebaseHistoryService()
     
     companion object {
         private const val TAG = "NavigationHistoryService"
@@ -146,8 +147,8 @@ class NavigationHistoryService(private val context: Context) {
                 // Clear current navigation
                 clearCurrentNavigation()
                 
-                val sessionType = if (currentNav.userId != null) "user" else "guest"
-                Log.i(TAG, "Finished navigation: ${status.name} - ${finishedNav.routeDescription} - Session type: $sessionType, UserId: ${currentNav.userId ?: "guest"}, Reason: ${reason ?: "Not specified"}")
+                val sessionType = "user"
+                Log.i(TAG, "Finished navigation: ${status.name} - ${finishedNav.routeDescription} - Session type: $sessionType, UserId: ${currentNav.userId ?: "unknown"}, Reason: ${reason ?: "Not specified"}")
                 return@withContext finishedNav
             }
             
@@ -160,7 +161,7 @@ class NavigationHistoryService(private val context: Context) {
     }
     
     /**
-     * Get all navigation history
+     * Get all navigation history with enhanced filtering
      */
     suspend fun getNavigationHistory(userId: String? = null): List<NavigationHistory> = withContext(Dispatchers.IO) {
         try {
@@ -186,6 +187,104 @@ class NavigationHistoryService(private val context: Context) {
     }
     
     /**
+     * Get filtered navigation history with advanced search
+     */
+    suspend fun getFilteredNavigationHistory(
+        userId: String? = null,
+        statuses: Set<NavigationStatus>? = null,
+        searchQuery: String? = null,
+        startDate: Long? = null,
+        endDate: Long? = null,
+        sortBy: HistorySortOption = HistorySortOption.DATE_DESC
+    ): List<NavigationHistory> = withContext(Dispatchers.IO) {
+        try {
+            val allHistory = getNavigationHistory(userId)
+            
+            var filteredHistory = allHistory
+            
+            // Filter by status
+            if (!statuses.isNullOrEmpty()) {
+                filteredHistory = filteredHistory.filter { it.status in statuses }
+            }
+            
+            // Filter by search query
+            if (!searchQuery.isNullOrBlank()) {
+                val query = searchQuery.lowercase()
+                filteredHistory = filteredHistory.filter { history ->
+                    history.routeDescription.lowercase().contains(query) ||
+                    history.destinations.any { it.name.lowercase().contains(query) || 
+                                             it.address.lowercase().contains(query) }
+                }
+            }
+            
+            // Filter by date range
+            if (startDate != null) {
+                filteredHistory = filteredHistory.filter { it.startTime >= startDate }
+            }
+            if (endDate != null) {
+                filteredHistory = filteredHistory.filter { it.startTime <= endDate }
+            }
+            
+            // Sort according to specified option
+            return@withContext when (sortBy) {
+                HistorySortOption.DATE_DESC -> filteredHistory.sortedByDescending { it.startTime }
+                HistorySortOption.DATE_ASC -> filteredHistory.sortedBy { it.startTime }
+                HistorySortOption.DURATION_DESC -> filteredHistory.sortedByDescending { it.actualDuration ?: it.estimatedDuration }
+                HistorySortOption.DURATION_ASC -> filteredHistory.sortedBy { it.actualDuration ?: it.estimatedDuration }
+                HistorySortOption.DISTANCE_DESC -> filteredHistory.sortedByDescending { it.totalDistance }
+                HistorySortOption.DISTANCE_ASC -> filteredHistory.sortedBy { it.totalDistance }
+                HistorySortOption.STATUS -> filteredHistory.sortedBy { it.status.ordinal }
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error filtering navigation history", e)
+            return@withContext emptyList()
+        }
+    }
+    
+    /**
+     * Get navigation statistics
+     */
+    suspend fun getNavigationStatistics(userId: String? = null): NavigationStatistics = withContext(Dispatchers.IO) {
+        try {
+            val history = getNavigationHistory(userId)
+            
+            val totalNavigations = history.size
+            val completedNavigations = history.count { it.status == NavigationStatus.COMPLETED }
+            val cancelledNavigations = history.count { it.status == NavigationStatus.CANCELLED }
+            val failedNavigations = history.count { it.status == NavigationStatus.FAILED }
+            val inProgressNavigations = history.count { it.status == NavigationStatus.IN_PROGRESS }
+            
+            val totalDistance = history.sumOf { it.totalDistance }
+            val totalDuration = history.mapNotNull { it.actualDuration ?: it.estimatedDuration }.sum()
+            val averageDuration = if (history.isNotEmpty()) totalDuration / history.size else 0
+            
+            val totalAlarms = history.sumOf { it.alarmsTriggered }
+            
+            val mostFrequentDestination = history
+                .flatMap { it.destinations }
+                .groupBy { it.name }
+                .maxByOrNull { it.value.size }?.key
+            
+            return@withContext NavigationStatistics(
+                totalNavigations = totalNavigations,
+                completedNavigations = completedNavigations,
+                cancelledNavigations = cancelledNavigations,
+                failedNavigations = failedNavigations,
+                inProgressNavigations = inProgressNavigations,
+                totalDistance = totalDistance,
+                totalDuration = totalDuration,
+                averageDuration = averageDuration,
+                totalAlarms = totalAlarms,
+                mostFrequentDestination = mostFrequentDestination
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error calculating navigation statistics", e)
+            return@withContext NavigationStatistics()
+        }
+    }
+    
+    /**
      * Get current active navigation
      */
     fun getCurrentNavigation(): NavigationHistory? {
@@ -201,12 +300,17 @@ class NavigationHistoryService(private val context: Context) {
     }
     
     /**
-     * Clear navigation history
+     * Clear navigation history (both local and Firebase)
      */
     suspend fun clearHistory(): Boolean = withContext(Dispatchers.IO) {
         try {
+            // Clear local storage first
             sharedPreferences.edit().remove(KEY_HISTORY_LIST).apply()
-            Log.d(TAG, "Navigation history cleared")
+            Log.d(TAG, "Navigation history cleared from local storage")
+            
+            // Firebase operations disabled - only local operations
+            Log.d(TAG, "Firebase operations disabled - only cleared local history")
+            
             return@withContext true
         } catch (e: Exception) {
             Log.e(TAG, "Error clearing navigation history", e)
@@ -215,18 +319,25 @@ class NavigationHistoryService(private val context: Context) {
     }
     
     /**
-     * Delete specific navigation from history
+     * Delete specific navigation from history (both local and Firebase)
      */
     suspend fun deleteNavigation(historyId: String): Boolean = withContext(Dispatchers.IO) {
         try {
+            // Delete from local storage first
             val history = getNavigationHistory().toMutableList()
             val updated = history.filterNot { it.id == historyId }
+            var localDeleted = false
             
             if (updated.size != history.size) {
                 saveHistoryList(updated)
-                Log.d(TAG, "Deleted navigation: $historyId")
-                return@withContext true
+                localDeleted = true
+                Log.d(TAG, "Deleted navigation from local storage: $historyId")
             }
+            
+            // Firebase operations disabled - only local operations
+            Log.d(TAG, "Firebase operations disabled - only deleted from local storage: $historyId")
+            
+            return@withContext localDeleted // Return true if at least local deletion succeeded
         } catch (e: Exception) {
             Log.e(TAG, "Error deleting navigation: $historyId", e)
         }
@@ -254,9 +365,10 @@ class NavigationHistoryService(private val context: Context) {
     
     private suspend fun saveToHistory(navigation: NavigationHistory) = withContext(Dispatchers.IO) {
         try {
-            val sessionType = if (navigation.userId != null) "user" else "guest"
-            Log.d(TAG, "Saving navigation to history - Session type: $sessionType, UserId: ${navigation.userId ?: "guest"}, Status: ${navigation.status}")
+            val sessionType = "user"
+            Log.d(TAG, "Saving navigation to history - Session type: $sessionType, UserId: ${navigation.userId ?: "unknown"}, Status: ${navigation.status}")
             
+            // Save to local storage first
             val history = getNavigationHistory().toMutableList()
             
             // Remove if already exists (update scenario)
@@ -273,6 +385,9 @@ class NavigationHistoryService(private val context: Context) {
             } else {
                 saveHistoryList(history)
             }
+            
+            // Firebase saving is disabled for now - only saving locally as requested
+            Log.d(TAG, "Firebase saving disabled - only saving locally - ID: ${navigation.id}")
             
             Log.i(TAG, "Successfully saved navigation to history - ID: ${navigation.id}, Session type: $sessionType")
         } catch (e: Exception) {
@@ -316,4 +431,93 @@ class NavigationHistoryService(private val context: Context) {
             Log.e(TAG, "Error saving history list", e)
         }
     }
+    
+    /**
+     * Sync local history to Firebase (useful when user signs in)
+     */
+    suspend fun syncToFirebase(): Result<Int> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val localHistory = getNavigationHistory()
+            val syncResult = firebaseHistoryService.syncLocalHistoryToFirebase(localHistory)
+            
+            if (syncResult.isSuccess) {
+                val syncedCount = syncResult.getOrNull() ?: 0
+                Log.d(TAG, "Successfully synced $syncedCount items to Firebase")
+                Result.success(syncedCount)
+            } else {
+                Log.w(TAG, "Failed to sync history to Firebase: ${syncResult.exceptionOrNull()?.message}")
+                Result.failure(syncResult.exceptionOrNull() ?: Exception("Sync failed"))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error syncing history to Firebase", e)
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Get combined history from local and Firebase (for authenticated users)
+     */
+    suspend fun getCombinedHistory(userId: String? = null): List<NavigationHistory> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val localHistory = getNavigationHistory(userId)
+            
+            // If user is authenticated, try to get Firebase history too
+            if (!userId.isNullOrEmpty()) {
+                try {
+                    val firebaseResult = firebaseHistoryService.getNavigationHistory()
+                    if (firebaseResult.isSuccess) {
+                        val firebaseHistory = firebaseResult.getOrNull() ?: emptyList()
+                        
+                        // Combine and deduplicate by ID
+                        val combinedHistory = (localHistory + firebaseHistory)
+                            .distinctBy { it.id }
+                            .sortedByDescending { it.startTime }
+                        
+                        Log.d(TAG, "Combined history: ${localHistory.size} local + ${firebaseHistory.size} Firebase = ${combinedHistory.size} unique items")
+                        combinedHistory
+                    } else {
+                        Log.w(TAG, "Failed to get Firebase history, using local only: ${firebaseResult.exceptionOrNull()?.message}")
+                        localHistory
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error getting Firebase history, using local only", e)
+                    localHistory
+                }
+            } else {
+                localHistory
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting combined history", e)
+            emptyList()
+        }
+    }
 }
+
+/**
+ * Enum for history sorting options
+ */
+enum class HistorySortOption {
+    DATE_DESC,
+    DATE_ASC,
+    DURATION_DESC,
+    DURATION_ASC,
+    DISTANCE_DESC,
+    DISTANCE_ASC,
+    STATUS
+}
+
+/**
+ * Data class for navigation statistics
+ */
+data class NavigationStatistics(
+    val totalNavigations: Int = 0,
+    val completedNavigations: Int = 0,
+    val cancelledNavigations: Int = 0,
+    val failedNavigations: Int = 0,
+    val inProgressNavigations: Int = 0,
+    val totalDistance: Double = 0.0,
+    val totalDuration: Int = 0,
+    val averageDuration: Int = 0,
+    val totalAlarms: Int = 0,
+    val mostFrequentDestination: String? = null
+)

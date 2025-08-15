@@ -25,6 +25,7 @@ import com.example.gzingapp.models.NavigationHistory
 import com.example.gzingapp.models.NavigationStatus
 import com.example.gzingapp.services.NavigationHistoryService
 import com.example.gzingapp.services.SessionManager
+import com.example.gzingapp.services.HistorySortOption
 import com.example.gzingapp.ui.auth.LoginActivity
 import com.example.gzingapp.ui.dashboard.DashboardActivity
 import com.example.gzingapp.ui.places.PlacesActivity
@@ -68,9 +69,10 @@ class HistoryActivity : AppCompatActivity(), NavigationView.OnNavigationItemSele
     private var historyList: MutableList<NavigationHistory> = mutableListOf()
     private var filteredHistoryList: MutableList<NavigationHistory> = mutableListOf()
     
-    // Filter state
+    // Filter and sort state
     private var currentSearchQuery: String = ""
     private var selectedStatuses: MutableSet<NavigationStatus> = mutableSetOf()
+    private var currentSortOption: HistorySortOption = HistorySortOption.DATE_DESC
 
     companion object {
         private const val TAG = "HistoryActivity"
@@ -90,13 +92,13 @@ class HistoryActivity : AppCompatActivity(), NavigationView.OnNavigationItemSele
         sessionManager = SessionManager(this)
         historyService = NavigationHistoryService(this)
 
-        // Check if user is logged in
-        if (!sessionManager.isLoggedIn()) {
-            Log.d(TAG, "User not logged in, redirecting to login")
+        // Check if user has an active session (either guest or authenticated)
+        if (sessionManager.needsAuthentication()) {
+            Log.d(TAG, "No active session found, redirecting to login")
             navigateToLogin()
             return
         } else {
-            Log.d(TAG, "User is logged in, loading navigation history")
+            Log.d(TAG, "Active session found")
         }
 
         loadNavigationHistory()
@@ -126,6 +128,22 @@ class HistoryActivity : AppCompatActivity(), NavigationView.OnNavigationItemSele
     private fun setupToolbar() {
         setSupportActionBar(toolbar)
         supportActionBar?.title = "Navigation History"
+        
+        // Add sort button to toolbar
+        toolbar.inflateMenu(R.menu.menu_history_toolbar)
+        toolbar.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.action_sort -> {
+                    showSortDialog()
+                    true
+                }
+                R.id.action_stats -> {
+                    showStatisticsDialog()
+                    true
+                }
+                else -> false
+            }
+        }
     }
 
     private fun setupNavigationDrawer() {
@@ -139,23 +157,25 @@ class HistoryActivity : AppCompatActivity(), NavigationView.OnNavigationItemSele
     }
 
     private fun setupBottomNavigation() {
-        bottomNavigation.selectedItemId = R.id.nav_history
+        // History is no longer in bottom navigation - only accessible from drawer
         bottomNavigation.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.nav_dashboard -> {
                     startActivity(Intent(this, DashboardActivity::class.java))
+                    overridePendingTransition(0, 0)
+                    finish()
                     true
                 }
                 R.id.nav_routes -> {
                     startActivity(Intent(this, RoutesActivity::class.java))
-                    true
-                }
-                R.id.nav_history -> {
-                    // Already on history page
+                    overridePendingTransition(0, 0)
+                    finish()
                     true
                 }
                 R.id.nav_places -> {
                     startActivity(Intent(this, PlacesActivity::class.java))
+                    overridePendingTransition(0, 0)
+                    finish()
                     true
                 }
                 else -> false
@@ -248,13 +268,26 @@ class HistoryActivity : AppCompatActivity(), NavigationView.OnNavigationItemSele
         lifecycleScope.launch {
             try {
                 val userId = sessionManager.getUserId()
+                
+                // Use enhanced filtering directly from service
+                filteredHistoryList = historyService.getFilteredNavigationHistory(
+                    userId = userId,
+                    statuses = if (selectedStatuses.isEmpty()) null else selectedStatuses,
+                    searchQuery = currentSearchQuery.ifBlank { null },
+                    sortBy = currentSortOption
+                ).toMutableList()
+                
+                // Also keep the full list for reference
                 historyList = historyService.getNavigationHistory(userId).toMutableList()
                 
-                // Apply filters to the loaded history
-                applyFilters()
+                // Update the adapter with filtered list
+                historyAdapter.updateHistoryList(filteredHistoryList)
                 
                 progressBar.visibility = View.GONE
                 updateEmptyState()
+                
+                Log.d(TAG, "Loaded ${historyList.size} total history items, ${filteredHistoryList.size} shown after filters")
+                
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading navigation history", e)
                 progressBar.visibility = View.GONE
@@ -265,36 +298,31 @@ class HistoryActivity : AppCompatActivity(), NavigationView.OnNavigationItemSele
     }
     
     private fun applyFilters() {
-        filteredHistoryList = if (selectedStatuses.isEmpty() && currentSearchQuery.isEmpty()) {
-            // No filters applied, show all
-            historyList.toMutableList()
-        } else {
-            historyList.filter { history ->
-                // Filter by status if any status filters are selected
-                val statusMatch = if (selectedStatuses.isEmpty()) {
-                    true // No status filter
-                } else {
-                    history.status in selectedStatuses
-                }
+        lifecycleScope.launch {
+            try {
+                val userId = sessionManager.getUserId()
                 
-                // Filter by search query
-                val searchMatch = if (currentSearchQuery.isEmpty()) {
-                    true // No search query
-                } else {
-                    // Match route description or any destination name
-                    history.routeDescription.lowercase().contains(currentSearchQuery) ||
-                    history.destinations.any { it.name.lowercase().contains(currentSearchQuery) }
-                }
+                // Use enhanced filtering from service
+                filteredHistoryList = historyService.getFilteredNavigationHistory(
+                    userId = userId,
+                    statuses = if (selectedStatuses.isEmpty()) null else selectedStatuses,
+                    searchQuery = currentSearchQuery.ifBlank { null },
+                    sortBy = currentSortOption
+                ).toMutableList()
                 
-                statusMatch && searchMatch
-            }.toMutableList()
+                // Update the adapter with filtered list
+                historyAdapter.updateHistoryList(filteredHistoryList)
+                
+                // Update empty state based on filtered results
+                updateEmptyState()
+                
+                Log.d(TAG, "Applied filters: ${filteredHistoryList.size} items shown")
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error applying filters", e)
+                Toast.makeText(this@HistoryActivity, "Error applying filters", Toast.LENGTH_SHORT).show()
+            }
         }
-        
-        // Update the adapter with filtered list
-        historyAdapter.updateHistoryList(filteredHistoryList)
-        
-        // Update empty state based on filtered results
-        updateEmptyState()
     }
 
     private fun updateEmptyState() {
@@ -340,33 +368,115 @@ class HistoryActivity : AppCompatActivity(), NavigationView.OnNavigationItemSele
             .setNegativeButton("Cancel", null)
             .show()
     }
+    
+    private fun showSortDialog() {
+        val sortOptions = arrayOf(
+            "Newest First",
+            "Oldest First", 
+            "Longest Duration",
+            "Shortest Duration",
+            "Farthest Distance",
+            "Shortest Distance",
+            "By Status"
+        )
+        
+        val currentIndex = when (currentSortOption) {
+            HistorySortOption.DATE_DESC -> 0
+            HistorySortOption.DATE_ASC -> 1
+            HistorySortOption.DURATION_DESC -> 2
+            HistorySortOption.DURATION_ASC -> 3
+            HistorySortOption.DISTANCE_DESC -> 4
+            HistorySortOption.DISTANCE_ASC -> 5
+            HistorySortOption.STATUS -> 6
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle("Sort History")
+            .setSingleChoiceItems(sortOptions, currentIndex) { dialog, which ->
+                currentSortOption = when (which) {
+                    0 -> HistorySortOption.DATE_DESC
+                    1 -> HistorySortOption.DATE_ASC
+                    2 -> HistorySortOption.DURATION_DESC
+                    3 -> HistorySortOption.DURATION_ASC
+                    4 -> HistorySortOption.DISTANCE_DESC
+                    5 -> HistorySortOption.DISTANCE_ASC
+                    6 -> HistorySortOption.STATUS
+                    else -> HistorySortOption.DATE_DESC
+                }
+                applyFilters()
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+    
+    private fun showStatisticsDialog() {
+        lifecycleScope.launch {
+            try {
+                val userId = sessionManager.getUserId()
+                val stats = historyService.getNavigationStatistics(userId)
+                
+                val message = buildString {
+                    appendLine("Navigation Statistics")
+                    appendLine()
+                    appendLine("📊 Total Trips: ${stats.totalNavigations}")
+                    appendLine("✅ Completed: ${stats.completedNavigations}")
+                    appendLine("❌ Cancelled: ${stats.cancelledNavigations}")
+                    appendLine("⚠️ Failed: ${stats.failedNavigations}")
+                    appendLine("🔄 In Progress: ${stats.inProgressNavigations}")
+                    appendLine()
+                    appendLine("📏 Total Distance: ${String.format("%.1f km", stats.totalDistance)}")
+                    appendLine("⏱️ Total Time: ${formatDuration(stats.totalDuration)}")
+                    appendLine("📈 Average Time: ${formatDuration(stats.averageDuration)}")
+                    appendLine("🚨 Total Alarms: ${stats.totalAlarms}")
+                    appendLine()
+                    if (!stats.mostFrequentDestination.isNullOrBlank()) {
+                        appendLine("⭐ Frequent Destination: ${stats.mostFrequentDestination}")
+                    }
+                }
+                
+                AlertDialog.Builder(this@HistoryActivity)
+                    .setTitle("Navigation Statistics")
+                    .setMessage(message)
+                    .setPositiveButton("OK", null)
+                    .show()
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading statistics", e)
+                Toast.makeText(this@HistoryActivity, "Error loading statistics", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    
+    private fun formatDuration(minutes: Int): String {
+        return when {
+            minutes < 60 -> "${minutes}m"
+            minutes < 1440 -> "${minutes / 60}h ${minutes % 60}m"
+            else -> "${minutes / 1440}d ${(minutes % 1440) / 60}h"
+        }
+    }
 
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.menu_account -> {
-                if (sessionManager.isLoggedIn()) {
-                    Toast.makeText(this, "You are already logged in", Toast.LENGTH_SHORT).show()
+                if (!sessionManager.needsAuthentication()) {
+                    // User has a session (guest or authenticated)
+                    {
+                        startActivity(Intent(this, com.example.gzingapp.ui.profile.ProfileActivity::class.java))
+                    }
                 } else {
-                    navigateToLogin()
-                }
-            }
-            R.id.menu_account -> {
-                if (sessionManager.isLoggedIn()) {
-                    startActivity(Intent(this, com.example.gzingapp.ui.profile.ProfileActivity::class.java))
-                } else {
-                    Toast.makeText(this, "Please log in to view profile", Toast.LENGTH_SHORT).show()
                     navigateToLogin()
                 }
             }
             R.id.menu_settings -> {
                 startActivity(Intent(this, SettingsActivity::class.java))
             }
-            R.id.nav_history -> {
+            R.id.menu_history -> {
                 // Already on history page
                 Toast.makeText(this, "Already on History page", Toast.LENGTH_SHORT).show()
             }
             R.id.menu_logout -> {
-                if (sessionManager.isLoggedIn()) {
+                if (!sessionManager.needsAuthentication()) {
                     logout()
                 } else {
                     Toast.makeText(this, "You are not logged in", Toast.LENGTH_SHORT).show()
@@ -399,7 +509,7 @@ class HistoryActivity : AppCompatActivity(), NavigationView.OnNavigationItemSele
 
     override fun onResume() {
         super.onResume()
-        if (sessionManager.isLoggedIn()) {
+        if (!sessionManager.needsAuthentication()) {
             loadNavigationHistory()
         }
     }

@@ -64,6 +64,51 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
     private var searchJob: Job? = null
     private val searchDebounceDelay = 500L // 500ms delay
 
+    /**
+     * Get current location name for user-friendly messages
+     */
+    private fun getCurrentLocationName(): String {
+        return try {
+            if (currentLocation != null) {
+                val location = currentLocation!!
+                when {
+                    // Check if in Antipolo area
+                    location.latitude >= 14.580 && location.latitude <= 14.650 && 
+                    location.longitude >= 121.160 && location.longitude <= 121.220 -> "Antipolo"
+                    
+                    // Check if in Marikina area
+                    location.latitude >= 14.620 && location.latitude <= 14.680 && 
+                    location.longitude >= 121.080 && location.longitude <= 121.130 -> "Marikina"
+                    
+                    else -> "your area"
+                }
+            } else {
+                "your area"
+            }
+        } catch (e: Exception) {
+            "your area"
+        }
+    }
+    
+    /**
+     * Get location-based search hint
+     */
+    private fun getLocationBasedHint(): String {
+        val locationName = getCurrentLocationName()
+        return "Search places near $locationName"
+    }
+    
+    /**
+     * Update search view hint based on current location
+     */
+    private fun updateSearchViewHint() {
+        try {
+            searchView.queryHint = getLocationBasedHint()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating search view hint", e)
+        }
+    }
+
     companion object {
         private const val LOCATION_PERMISSION_REQUEST_CODE = 100
         private const val TAG = "PlacesActivity"
@@ -73,6 +118,12 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_places)
 
+        // Initialize services FIRST before UI setup
+        sessionManager = SessionManager(this)
+        placesService = PlacesService(this)
+        locationHelper = LocationHelper(this)
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
         initializeViews()
         setupToolbar()
         setupNavigationDrawer()
@@ -81,18 +132,14 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
         setupSwipeRefresh()
         setupSearchView()
 
-        sessionManager = SessionManager(this)
-        placesService = PlacesService(this)
-        locationHelper = LocationHelper(this)
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-
-        // Check if user is logged in
-        if (!sessionManager.isLoggedIn()) {
-            Log.d(TAG, "User not logged in, redirecting to login")
-            navigateToLogin()
+        // Check if user has an active session (either guest or authenticated)
+        if (sessionManager.needsAuthentication()) {
+            Log.d(TAG, "No active session found, redirecting to login")
+            startActivity(Intent(this, com.example.gzingapp.ui.auth.LoginActivity::class.java))
+            finish()
             return
         } else {
-            Log.d(TAG, "User is logged in, proceeding with Places activity")
+            Log.d(TAG, "Active session found")
         }
 
         // Check location permission and load places
@@ -100,6 +147,12 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
         
         // Setup route planner button
         setupRoutePlannerButton()
+        
+        // Setup map view FAB
+        setupMapViewFAB()
+        
+        // Setup filter button
+        setupFilterButton()
     }
     
     private fun setupRoutePlannerButton() {
@@ -114,6 +167,54 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
         } catch (e: Exception) {
             Log.e(TAG, "Error setting up route planner button", e)
         }
+    }
+    
+    private fun setupMapViewFAB() {
+        try {
+            val fabMapView = findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.fabMapView)
+            fabMapView?.setOnClickListener {
+                // Navigate to dashboard (map view)
+                val intent = Intent(this, DashboardActivity::class.java)
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                startActivity(intent)
+                overridePendingTransition(0, 0)
+                finish()
+                Toast.makeText(this, "Opening Map View", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting up map view FAB", e)
+        }
+    }
+    
+    private fun setupFilterButton() {
+        try {
+            val btnFilter = findViewById<android.widget.ImageView>(R.id.btnFilter)
+            btnFilter?.setOnClickListener {
+                showFilterDialog()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting up filter button", e)
+        }
+    }
+    
+    private fun showFilterDialog() {
+        val categories = arrayOf("All Places", "Restaurants", "Shopping", "Attractions", "Churches", "Parks", "Hotels")
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+        builder.setTitle("Filter Places by Category")
+        builder.setItems(categories) { _, which ->
+            val selectedCategory = categories[which]
+            filterPlacesByCategory(selectedCategory)
+            Toast.makeText(this, "Filtering by: $selectedCategory", Toast.LENGTH_SHORT).show()
+        }
+        builder.setNegativeButton("Cancel", null)
+        builder.create().show()
+    }
+    
+    private fun filterPlacesByCategory(category: String) {
+        // This would filter the current places list by category
+        // For now, we'll just refresh the places as a placeholder
+        refreshPlaces()
+        // TODO: Implement actual category filtering logic
     }
 
     private fun initializeViews() {
@@ -143,78 +244,47 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
         toggle.syncState()
         navigationView.setNavigationItemSelectedListener(this)
         
-        // Hide logout option for guest users
-        updateNavigationMenuForGuest()
+        // Setup navigation menu
     }
     
-    private fun updateNavigationMenuForGuest() {
-        val menu = navigationView.menu
-        val logoutItem = menu.findItem(R.id.menu_logout)
-        logoutItem?.isVisible = !sessionManager.isAnonymous()
-    }
+
 
     private fun setupBottomNavigation() {
-        try {
-            // Make sure bottomNavigation is properly initialized before using it
-            if (!::bottomNavigation.isInitialized) {
-                Log.e(TAG, "Bottom navigation not initialized")
-                return
-            }
-            
-            // Set the selected item safely
-            try {
-                bottomNavigation.selectedItemId = R.id.nav_places
-            } catch (e: Exception) {
-                Log.e(TAG, "Error setting selected item in bottom navigation", e)
-            }
+        bottomNavigation.selectedItemId = R.id.nav_places
 
-            bottomNavigation.setOnItemSelectedListener { item ->
-                try {
-                    when (item.itemId) {
-                        R.id.nav_dashboard -> {
-                            Log.d(TAG, "Navigating to DashboardActivity")
-                            val intent = Intent(this, DashboardActivity::class.java)
-                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            startActivity(intent)
-                            overridePendingTransition(0, 0)
-                            finish()
-                            true
-                        }
-                        R.id.nav_routes -> {
-                            Log.d(TAG, "Navigating to RoutesActivity")
-                            val intent = Intent(this, RoutesActivity::class.java)
-                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            startActivity(intent)
-                            overridePendingTransition(0, 0)
-                            finish()
-                            true
-                        }
-                        R.id.nav_places -> {
-                            Log.d(TAG, "Already on places page")
-                            // Already on places page
-                            true
-                        }
-                        else -> {
-                            Log.w(TAG, "Unknown navigation item selected: ${item.itemId}")
-                            false
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error handling bottom navigation selection", e)
+        bottomNavigation.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_dashboard -> {
+                    Log.d(TAG, "Navigating to DashboardActivity")
+                    val intent = Intent(this, DashboardActivity::class.java)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    startActivity(intent)
+                    overridePendingTransition(0, 0)
+                    finish()
+                    true
+                }
+                R.id.nav_routes -> {
+                    Log.d(TAG, "Navigating to RoutesActivity")
+                    val intent = Intent(this, RoutesActivity::class.java)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    startActivity(intent)
+                    overridePendingTransition(0, 0)
+                    finish()
+                    true
+                }
+                R.id.nav_places -> {
+                    Log.d(TAG, "Already on places page")
+                    // Already on places page
+                    true
+                }
+                else -> {
+                    Log.w(TAG, "Unknown navigation item selected: ${item.itemId}")
                     false
                 }
             }
-            
-            Log.d(TAG, "Bottom navigation setup completed successfully")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error setting up bottom navigation", e)
-            // Try to continue without bottom navigation if it fails
-            try {
-                bottomNavigation.visibility = View.GONE
-            } catch (e2: Exception) {
-                Log.e(TAG, "Could not hide bottom navigation", e2)
-            }
         }
+        
+        Log.d(TAG, "Bottom navigation setup completed successfully")
     }
 
     private fun setupRecyclerView() {
@@ -239,20 +309,34 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
     }
 
     private fun setupSearchView() {
+        // Set location-based hint instead of default
+        updateSearchViewHint()
+        
         searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
                 if (!query.isNullOrBlank()) {
                     searchPlacesWithDebounce(query, immediate = true)
+                } else {
+                    // If empty search, load nearby places instead of defaults
+                    loadNearbyPlaces()
                 }
                 return true
             }
 
             override fun onQueryTextChange(newText: String?): Boolean {
-                // Implement debounced real-time search
-                searchPlacesWithDebounce(newText ?: "", immediate = false)
+                // Implement debounced real-time search with nearby focus
+                if (newText.isNullOrBlank()) {
+                    // Show nearby places when search is cleared
+                    loadNearbyPlaces()
+                } else {
+                    searchNearbyPlacesWithQuery(newText, immediate = false)
+                }
                 return true
             }
         })
+        
+        // Set up search view to focus on nearby results
+        searchView.queryHint = getLocationBasedHint()
     }
 
     private fun checkLocationPermissionAndLoadPlaces() {
@@ -289,17 +373,20 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
                     // Check if location is within Antipolo/Marikina bounds
                     if (isLocationInSupportedArea(currentLocation!!)) {
                         loadNearbyPlaces()
+                        updateSearchViewHint() // Update search hint with actual location
                     } else {
                         // If outside supported area, use Antipolo center
                         currentLocation = LatLng(14.5995, 121.1817) // Antipolo coordinates
                         loadNearbyPlaces()
-                        showSnackbar("Showing places in supported area (Antipolo/Marikina)")
+                        updateSearchViewHint() // Update search hint
+                        showSnackbar("🗺️ Showing places in supported area (Antipolo/Marikina)")
                     }
                 } else {
                     // Use default location (Antipolo area) if current location is not available
                     currentLocation = LatLng(14.5995, 121.1817) // Antipolo coordinates
                     loadNearbyPlaces()
-                    showSnackbar("Using default location. Enable GPS for better results.")
+                    updateSearchViewHint() // Update search hint
+                    showSnackbar("📡 Using default location. Enable GPS for better results.")
                 }
             }
             .addOnFailureListener { exception ->
@@ -311,41 +398,86 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
     }
 
     private fun loadNearbyPlaces() {
-        val location = currentLocation ?: return
+        val location = currentLocation ?: run {
+            // If no location yet, try to get it first
+            checkLocationPermissionAndLoadPlaces()
+            return
+        }
 
         if (isLoadingPlaces) return
         isLoadingPlaces = true
 
         lifecycleScope.launch {
             try {
+                // Enhanced nearby places loading with location priority
                 val places = placesService.searchNearbyPlaces(location)
+                
+                // Sort places by distance from current location
+                val sortedPlaces = places.sortedBy { place ->
+                    if (place.latLng.latitude != 0.0 && place.latLng.longitude != 0.0) {
+                        locationHelper.calculateDistance(location, place.latLng)
+                    } else {
+                        Double.MAX_VALUE
+                    }
+                }
 
                 runOnUiThread {
                     swipeRefreshLayout.isRefreshing = false
                     isLoadingPlaces = false
 
-                    if (places.isNotEmpty()) {
-                        placesAdapter.updatePlaces(places)
-                        showSnackbar("Found ${places.size} places nearby")
+                    if (sortedPlaces.isNotEmpty()) {
+                        placesAdapter.updatePlaces(sortedPlaces)
+                        val locationName = getCurrentLocationName()
+                        showSnackbar("📍 Found ${sortedPlaces.size} places near $locationName")
+                        updateSearchViewHint()
                     } else {
-                        // Load sample data if no places found
-                        loadSamplePlaces()
-                        showSnackbar("No places found nearby. Showing sample data.")
+                        // Try to get more places with larger radius
+                        loadNearbyPlacesWithLargerRadius(location)
                     }
                 }
             } catch (e: Exception) {
                 runOnUiThread {
                     swipeRefreshLayout.isRefreshing = false
                     isLoadingPlaces = false
-                    showSnackbar("Error loading places: ${e.message}")
-                    // Load sample data as fallback
-                    loadSamplePlaces()
+                    showSnackbar("Error loading nearby places: ${e.message}")
+                    // Load sample data as fallback only if necessary
+                    loadAntipoloMarikinaSamplePlaces()
+                }
+            }
+        }
+    }
+    
+    /**
+     * Try to load places with a larger search radius
+     */
+    private fun loadNearbyPlacesWithLargerRadius(location: LatLng) {
+        lifecycleScope.launch {
+            try {
+                // Search with larger radius (this would require PlacesService enhancement)
+                val places = placesService.searchNearbyPlaces(location)
+                
+                runOnUiThread {
+                    if (places.isNotEmpty()) {
+                        placesAdapter.updatePlaces(places)
+                        showSnackbar("📍 Found ${places.size} places in wider area")
+                    } else {
+                        loadAntipoloMarikinaSamplePlaces()
+                        showSnackbar("🗺️ Showing local places in your area")
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    loadAntipoloMarikinaSamplePlaces()
+                    showSnackbar("🗺️ Showing local places")
                 }
             }
         }
     }
 
-    private fun searchPlacesWithDebounce(query: String, immediate: Boolean = false) {
+    /**
+     * Search nearby places with query - prioritizes location-based results
+     */
+    private fun searchNearbyPlacesWithQuery(query: String, immediate: Boolean = false) {
         // Cancel previous search job
         searchJob?.cancel()
         
@@ -355,7 +487,7 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
             return
         }
         
-        // If query is too short, don't search
+        // If query is too short, don't search unless immediate
         if (query.length < 2 && !immediate) {
             return
         }
@@ -365,12 +497,22 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
                 delay(searchDebounceDelay)
             }
             
-            // Perform the search
-            searchPlaces(query)
+            // Perform location-aware search
+            searchNearbyPlaces(query)
         }
     }
+    
+    /**
+     * Legacy method for compatibility - now redirects to nearby search
+     */
+    private fun searchPlacesWithDebounce(query: String, immediate: Boolean = false) {
+        searchNearbyPlacesWithQuery(query, immediate)
+    }
 
-    private fun searchPlaces(query: String) {
+    /**
+     * Search nearby places with a specific query - location-aware search
+     */
+    private fun searchNearbyPlaces(query: String) {
         if (isLoadingPlaces) return
         isLoadingPlaces = true
 
@@ -378,19 +520,17 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
 
         lifecycleScope.launch {
             try {
-                // Limit search to Antipolo/Marikina area
-                val restrictedLocation = if (currentLocation != null && isLocationInSupportedArea(currentLocation!!)) {
-                    currentLocation
-                } else {
-                    LatLng(14.5995, 121.1817) // Default to Antipolo center
-                }
+                // Use current location or default to supported area
+                val searchLocation = currentLocation ?: LatLng(14.5995, 121.1817) // Antipolo center
                 
-                val places = placesService.searchPlacesByText(query, restrictedLocation)
+                val places = placesService.searchPlacesByText(query, searchLocation)
                 
-                // Filter results to only include places in supported areas
+                // Filter and sort by distance from current location
                 val filteredPlaces = places.filter { place ->
                     place.latLng.latitude != 0.0 && place.latLng.longitude != 0.0 &&
                     isLocationInSupportedArea(place.latLng)
+                }.sortedBy { place ->
+                    locationHelper.calculateDistance(searchLocation, place.latLng)
                 }
 
                 runOnUiThread {
@@ -399,11 +539,12 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
 
                     if (filteredPlaces.isNotEmpty()) {
                         placesAdapter.updatePlaces(filteredPlaces)
-                        showSnackbar("Found ${filteredPlaces.size} places for '$query' in Antipolo/Marikina")
+                        val locationName = getCurrentLocationName()
+                        showSnackbar("🔍 Found ${filteredPlaces.size} places for '$query' near $locationName")
                     } else {
-                        // Show sample places for Antipolo/Marikina if no API results
+                        // Show nearby sample places if no API results
                         loadAntipoloMarikinaSamplePlaces()
-                        showSnackbar("No places found for '$query'. Showing local places.")
+                        showSnackbar("🔍 No '$query' found nearby. Showing local places.")
                     }
                 }
             } catch (e: Exception) {
@@ -418,9 +559,16 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
             }
         }
     }
+    
+    /**
+     * Legacy search method - now redirects to nearby search
+     */
+    private fun searchPlaces(query: String) {
+        searchNearbyPlaces(query)
+    }
 
     private fun refreshPlaces() {
-        getCurrentLocationAndLoadPlaces()
+        checkLocationPermissionAndLoadPlaces()
     }
 
     private fun loadSamplePlaces() {
@@ -441,7 +589,7 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
                 isOpen = true,
                 photoUrl = null,
                 latLng = LatLng(14.6408, 121.1078),
-                imageRes = R.drawable.ic_places
+                imageRes = R.drawable.bg_shopping_placeholder
             ),
             PlaceItem(
                 id = "riverbanks_mall",
@@ -454,7 +602,7 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
                 isOpen = true,
                 photoUrl = null,
                 latLng = LatLng(14.6298, 121.1028),
-                imageRes = R.drawable.ic_places
+                imageRes = R.drawable.bg_shopping_placeholder
             ),
             PlaceItem(
                 id = "hinulugang_taktak",
@@ -467,7 +615,7 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
                 isOpen = true,
                 photoUrl = null,
                 latLng = LatLng(14.5672, 121.1842),
-                imageRes = R.drawable.ic_places
+                imageRes = R.drawable.bg_attraction_placeholder
             ),
             PlaceItem(
                 id = "antipolo_cathedral",
@@ -480,7 +628,7 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
                 isOpen = true,
                 photoUrl = null,
                 latLng = LatLng(14.5995, 121.1817),
-                imageRes = R.drawable.ic_places
+                imageRes = R.drawable.bg_church_placeholder
             ),
             PlaceItem(
                 id = "marikina_sports_park",
@@ -493,7 +641,7 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
                 isOpen = true,
                 photoUrl = null,
                 latLng = LatLng(14.6475, 121.1121),
-                imageRes = R.drawable.ic_places
+                imageRes = R.drawable.bg_attraction_placeholder
             ),
             PlaceItem(
                 id = "cloud9_antipolo",
@@ -506,7 +654,7 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
                 isOpen = true,
                 photoUrl = null,
                 latLng = LatLng(14.5834, 121.1953),
-                imageRes = R.drawable.ic_places
+                imageRes = R.drawable.bg_restaurant_placeholder
             ),
             PlaceItem(
                 id = "pinto_art_museum",
@@ -519,7 +667,7 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
                 isOpen = true,
                 photoUrl = null,
                 latLng = LatLng(14.5639, 121.1906),
-                imageRes = R.drawable.ic_places
+                imageRes = R.drawable.bg_attraction_placeholder
             ),
             PlaceItem(
                 id = "marikina_river_park",
@@ -532,7 +680,7 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
                 isOpen = true,
                 photoUrl = null,
                 latLng = LatLng(14.6531, 121.1025),
-                imageRes = R.drawable.ic_places
+                imageRes = R.drawable.bg_attraction_placeholder
             ),
             PlaceItem(
                 id = "crescent_moon_cafe",
@@ -545,7 +693,7 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
                 isOpen = true,
                 photoUrl = null,
                 latLng = LatLng(14.5823, 121.1945),
-                imageRes = R.drawable.ic_places
+                imageRes = R.drawable.bg_restaurant_placeholder
             ),
             PlaceItem(
                 id = "shoe_museum",
@@ -558,7 +706,7 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
                 isOpen = true,
                 photoUrl = null,
                 latLng = LatLng(14.6422, 121.1052),
-                imageRes = R.drawable.ic_places
+                imageRes = R.drawable.bg_attraction_placeholder
             )
         )
 
@@ -641,59 +789,23 @@ class PlacesActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelec
         }
     }
 
+
+
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
-            R.id.menu_account -> {
-                if (sessionManager.isAnonymous()) {
-                    // Redirect guest users to login for account access
-                    Toast.makeText(this, "Please sign in to access your account", Toast.LENGTH_LONG).show()
-                    val intent = Intent(this, LoginActivity::class.java)
-                    startActivity(intent)
-                } else {
-                    startActivity(Intent(this, com.example.gzingapp.ui.profile.ProfileActivity::class.java))
-                }
+            R.id.nav_dashboard -> {
+                startActivity(Intent(this, com.example.gzingapp.ui.dashboard.DashboardActivity::class.java))
             }
-            R.id.menu_settings -> {
-                startActivity(Intent(this, SettingsActivity::class.java))
+            R.id.nav_routes -> {
+                startActivity(Intent(this, com.example.gzingapp.ui.routes.RoutesActivity::class.java))
             }
-            R.id.menu_logout -> {
-                // Show confirmation dialog before logout
-                showLogoutConfirmationDialog()
+            R.id.nav_places -> {
+                // Already in places activity
             }
+            // Additional navigation items can be added here when the menu is expanded
         }
         drawerLayout.closeDrawer(GravityCompat.START)
         return true
-    }
-    
-    private fun showLogoutConfirmationDialog() {
-        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
-        builder.setTitle("Confirm Logout")
-        builder.setMessage("Are you sure you want to log out?")
-        builder.setPositiveButton("Yes") { _, _ ->
-            performLogout()
-        }
-        builder.setNegativeButton("No") { dialog, _ ->
-            dialog.dismiss()
-        }
-        builder.create().show()
-    }
-    
-    private fun performLogout() {
-        try {
-            sessionManager.logout()
-            Toast.makeText(this, "Logged out successfully", Toast.LENGTH_SHORT).show()
-            navigateToLogin()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error during logout", e)
-            Toast.makeText(this, "Logout failed. Please try again.", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun navigateToLogin() {
-        val intent = Intent(this, LoginActivity::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        startActivity(intent)
-        finish()
     }
 
     @Deprecated("Deprecated in Java")

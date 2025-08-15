@@ -42,10 +42,10 @@
             android:exported="false" />
         <activity
             android:name=".ui.history.HistoryActivity"
-            android:exported="false" /> <!-- Google Maps API Key -->
+            android:exported="false" />         <!-- Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyAWkbavPeHt9caL5PxClvF1Cg9KLYrVkPE" /> <!-- Login Activity (Launcher) -->
+            android:value="@string/google_maps_key" /> <!-- Login Activity (Launcher) -->
         <activity
             android:name=".ui.auth.LoginActivity"
             android:exported="true"
@@ -65,9 +65,16 @@
             android:name=".services.LocationTrackingService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="location" /> <!-- Proximity Service -->
+            android:foregroundServiceType="location" />         <!-- Proximity Service -->
         <service
             android:name=".services.ProximityService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+        
+        <!-- Background Location Service for Real-time Geofence Detection -->
+        <service
+            android:name=".services.BackgroundLocationService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="location" /> <!-- Broadcast Receiver for Alarms -->
@@ -94,7 +101,21 @@
             <intent-filter>
                 <action android:name="com.example.gzingapp.GEOFENCE_ACTION" />
             </intent-filter>
-        </receiver> <!-- Boot receiver to restart services after device reboot -->
+        </receiver>
+
+        <!-- In-app Geofence Event Receiver to handle transitions in background -->
+        <receiver
+            android:name=".receivers.GeofenceEventReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.example.gzingapp.GEOFENCE_ENTER" />
+                <action android:name="com.example.gzingapp.GEOFENCE_EXIT" />
+                <action android:name="com.example.gzingapp.GEOFENCE_DWELL" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Boot receiver to restart services after device reboot -->
         <receiver
             android:name=".receivers.BootReceiver"
             android:enabled="true"

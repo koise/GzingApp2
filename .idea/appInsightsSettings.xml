@@ -9,10 +9,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="com.example.gzingapp" />
-                  <option name="mobileSdkAppId" value="1:166205855721:android:c368412a0c996393c6dd78" />
-                  <option name="projectId" value="gzing-f7c85" />
-                  <option name="projectNumber" value="166205855721" />
+                  <option name="appId" value="com.example.gzingapp.debug" />
+                  <option name="mobileSdkAppId" value="1:878586588692:android:9fea15a7a40b343bdb0102" />
+                  <option name="projectId" value="gzingapp-bac3d" />
+                  <option name="projectNumber" value="878586588692" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

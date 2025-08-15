@@ -128,36 +128,10 @@ class LoginActivity : AppCompatActivity() {
     }
     
     private fun setupListeners() {
-        findViewById<android.widget.Button>(R.id.btnContinueAsGuest).setOnClickListener {
-            signInAnonymously()
-        }
+        // No additional listeners needed
     }
     
-    private fun signInAnonymously() {
-        lifecycleScope.launch {
-            try {
-                val result = authService.signInAnonymously()
-                
-                if (result.isSuccess) {
-                    val user = result.getOrNull()
-                    if (user != null) {
-                        // Save anonymous user session
-                        sessionManager.saveSession(
-                            userId = user.uid,
-                            userName = "Guest",
-                            isAnonymous = true
-                        )
-                        
-                        navigateToDashboard()
-                    }
-                } else {
-                    showError("Failed to sign in anonymously")
-                }
-            } catch (e: Exception) {
-                showError("Error: ${e.message}")
-            }
-        }
-    }
+
     
     fun navigateToDashboard() {
         val intent = Intent(this, DashboardActivity::class.java)

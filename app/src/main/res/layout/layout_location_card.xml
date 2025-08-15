@@ -8,7 +8,8 @@
     android:layout_margin="8dp"
     app:cardCornerRadius="8dp"
     app:cardElevation="4dp"
-    app:cardBackgroundColor="@color/white">
+    app:cardBackgroundColor="@color/white"
+    android:tag="location_card_container">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -61,7 +62,8 @@
                 android:orientation="horizontal"
                 android:visibility="gone"
                 android:layout_marginTop="8dp"
-                android:gravity="center_vertical">
+                android:gravity="center_vertical"
+                android:tag="real_time_navigation_status">
 
                 <ImageView
                     android:layout_width="16dp"
@@ -101,7 +103,8 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:orientation="vertical"
+                    android:tag="real_time_location_summary">
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -118,7 +121,21 @@
                         android:textSize="14sp"
                         android:maxLines="1"
                         android:ellipsize="end"
-                        tools:text="123 Main Street..." />
+                        tools:text="123 Main Street..."
+                        android:tag="real_time_location_text" />
+                    
+                    <!-- Always visible current location coordinates -->
+                    <TextView
+                        android:id="@+id/tvCurrentLocationCoordinatesCollapsed"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp"
+                        android:maxLines="2"
+                        android:ellipsize="end"
+                        tools:text="📍 37.4219, -122.0841 (±5m) • 25.0km/h"
+                        android:tag="real_time_location_coordinates_collapsed" />
                 </LinearLayout>
 
                 <!-- Quick Navigation Button -->
@@ -211,7 +228,8 @@
                     android:orientation="horizontal"
                     android:layout_marginTop="8dp"
                     android:background="@drawable/geofence_distance_background"
-                    android:padding="8dp">
+                    android:padding="8dp"
+                    android:tag="real_time_geofence_info">
 
                     <ImageView
                         android:layout_width="16dp"
@@ -234,7 +252,8 @@
                             android:textStyle="bold"
                             android:textSize="14sp"
                             android:textColor="@color/primary_brown"
-                            android:text="Outside geofence" />
+                            android:text="Outside geofence"
+                            android:tag="real_time_geofence_status" />
 
                         <TextView
                             android:id="@+id/tvGeofenceDistance"
@@ -242,7 +261,20 @@
                             android:layout_height="wrap_content"
                             android:textSize="12sp"
                             android:textColor="@color/text_secondary"
-                            android:text="Distance: calculating..." />
+                            android:text="Distance: calculating..."
+                            android:tag="real_time_geofence_distance" />
+                            
+                        <!-- Last updated timestamp -->
+                        <TextView
+                            android:id="@+id/tvGeofenceLastUpdate"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textSize="10sp"
+                            android:textColor="@color/text_secondary"
+                            android:layout_marginTop="2dp"
+                            android:visibility="gone"
+                            tools:text="Updated: 10:45 AM"
+                            android:tag="real_time_geofence_timestamp" />
                     </LinearLayout>
                 </LinearLayout>
             </LinearLayout>
@@ -279,15 +311,35 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:background="@drawable/location_info_background"
+                android:padding="12dp"
+                android:layout_marginBottom="8dp"
+                android:tag="real_time_location_details">
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <!-- Location Header with Icon -->
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/current_location"
-                    android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
-                    android:textColor="@color/primary_brown"
-                    android:textStyle="bold" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_location_pin"
+                        android:tint="@color/primary_brown"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/current_location"
+                        android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
+                        android:textColor="@color/primary_brown"
+                        android:textStyle="bold" />
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/tvCurrentLocationAddress"
@@ -295,7 +347,20 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:textColor="@color/text_primary"
-                    tools:text="123 Main Street, City, State" />
+                    tools:text="123 Main Street, City, State"
+                    android:tag="real_time_location_address" />
+                    
+                <!-- Real-time location coordinates -->
+                <TextView
+                    android:id="@+id/tvCurrentLocationCoordinates"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:visibility="visible"
+                    tools:text="Lat: 37.4219, Lng: -122.0841"
+                    android:tag="real_time_location_coordinates" />
             </LinearLayout>
 
             <!-- Pinned Location Divider -->
@@ -314,15 +379,34 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
+                android:background="@drawable/location_info_background"
+                android:padding="12dp"
+                android:layout_marginBottom="8dp"
                 android:visibility="gone">
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <!-- Pinned Location Header with Icon -->
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/pinned_location"
-                    android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
-                    android:textColor="@color/primary_brown"
-                    android:textStyle="bold" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_location_pin"
+                        android:tint="@color/primary_brown"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/pinned_location"
+                        android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
+                        android:textColor="@color/primary_brown"
+                        android:textStyle="bold" />
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/tvPinnedLocationAddress"
@@ -360,7 +444,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:orientation="horizontal">
+                    android:orientation="horizontal"
+                    android:tag="real_time_route_info">
 
                     <!-- ETA -->
                     <LinearLayout
@@ -383,7 +468,8 @@
                             android:textColor="@color/text_primary"
                             android:textSize="16sp"
                             android:textStyle="bold"
-                            tools:text="15 min" />
+                            tools:text="15 min"
+                            android:tag="real_time_eta" />
                     </LinearLayout>
 
                     <!-- Distance -->
@@ -407,7 +493,8 @@
                             android:textColor="@color/text_primary"
                             android:textSize="16sp"
                             android:textStyle="bold"
-                            tools:text="5.2 km" />
+                            tools:text="5.2 km"
+                            android:tag="real_time_distance" />
                     </LinearLayout>
 
                     <!-- Traffic -->
@@ -431,7 +518,8 @@
                             android:textColor="@color/text_primary"
                             android:textSize="16sp"
                             android:textStyle="bold"
-                            tools:text="Light" />
+                            tools:text="Light"
+                            android:tag="real_time_traffic" />
                     </LinearLayout>
                 </LinearLayout>
             </LinearLayout>

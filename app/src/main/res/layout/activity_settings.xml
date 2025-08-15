@@ -217,6 +217,277 @@
 
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Alarm Settings Section -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="4dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Alarm Settings"
+                        android:textColor="@color/dark_brown"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginBottom="16dp"
+                        android:text="Customize your arrival alarm settings"
+                        android:textColor="@color/medium_brown"
+                        android:textSize="14sp" />
+
+                    <!-- Vibration Setting -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="16dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:background="?attr/selectableItemBackground"
+                        android:padding="12dp">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Vibration"
+                                android:textColor="@color/dark_brown"
+                                android:textSize="16sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="Enable vibration for alarms and notifications"
+                                android:textColor="@color/medium_brown"
+                                android:textSize="12sp" />
+
+                        </LinearLayout>
+
+                        <androidx.appcompat.widget.SwitchCompat
+                            android:id="@+id/switchVibration"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="16dp"
+                            android:checked="true"
+                            android:thumbTint="@color/white"
+                            android:trackTint="@color/primary_brown"
+                            app:thumbTint="@color/white"
+                            app:trackTint="@color/primary_brown" />
+
+                    </LinearLayout>
+
+                    <!-- Alarm Sound Selection -->
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="12dp"
+                        android:text="Alarm Sound"
+                        android:textColor="@color/dark_brown"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <RadioGroup
+                        android:id="@+id/rgAlarmSound"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="16dp"
+                        android:orientation="vertical">
+
+                        <RadioButton
+                            android:id="@+id/rbAlarmSoundDefault"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:buttonTint="@color/primary_brown"
+                            android:checked="true"
+                            android:padding="12dp"
+                            android:text="Default - System alarm sound"
+                            android:textColor="@color/dark_brown"
+                            android:textSize="16sp" />
+
+                        <RadioButton
+                            android:id="@+id/rbAlarmSoundCustom"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:buttonTint="@color/primary_brown"
+                            android:padding="12dp"
+                            android:text="Custom - Select from system sounds"
+                            android:textColor="@color/dark_brown"
+                            android:textSize="16sp" />
+
+                    </RadioGroup>
+
+                    <!-- Custom Alarm Sound Selection -->
+                    <LinearLayout
+                        android:id="@+id/customAlarmSoundSection"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="16dp"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:text="Custom Alarm Sound"
+                            android:textColor="@color/dark_brown"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvSelectedAlarmSound"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="12dp"
+                            android:text="No custom sound selected"
+                            android:textColor="@color/medium_brown"
+                            android:textSize="14sp"
+                            android:background="@drawable/bg_place_card"
+                            android:padding="12dp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSelectAlarmSound"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:backgroundTint="@color/primary_brown"
+                            android:text="Select Alarm Sound"
+                            android:textColor="@color/white"
+                            android:textSize="14sp"
+                            app:cornerRadius="8dp"
+                            app:icon="@drawable/ic_music_note"
+                            app:iconTint="@color/white" />
+
+                    </LinearLayout>
+
+                    <!-- Notification Sound Selection -->
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="12dp"
+                        android:text="Notification Sound"
+                        android:textColor="@color/dark_brown"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <RadioGroup
+                        android:id="@+id/rgNotificationSound"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="16dp"
+                        android:orientation="vertical">
+
+                        <RadioButton
+                            android:id="@+id/rbNotificationSoundDefault"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:buttonTint="@color/primary_brown"
+                            android:checked="true"
+                            android:padding="12dp"
+                            android:text="Default - System notification sound"
+                            android:textColor="@color/dark_brown"
+                            android:textSize="16sp" />
+
+                        <RadioButton
+                            android:id="@+id/rbNotificationSoundCustom"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:buttonTint="@color/primary_brown"
+                            android:padding="12dp"
+                            android:text="Custom - Select from system sounds"
+                            android:textColor="@color/dark_brown"
+                            android:textSize="16sp" />
+
+                    </RadioGroup>
+
+                    <!-- Custom Notification Sound Selection -->
+                    <LinearLayout
+                        android:id="@+id/customNotificationSoundSection"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="16dp"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:text="Custom Notification Sound"
+                            android:textColor="@color/dark_brown"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvSelectedNotificationSound"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="12dp"
+                            android:text="No custom sound selected"
+                            android:textColor="@color/medium_brown"
+                            android:textSize="14sp"
+                            android:background="@drawable/bg_place_card"
+                            android:padding="12dp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSelectNotificationSound"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:backgroundTint="@color/primary_brown"
+                            android:text="Select Notification Sound"
+                            android:textColor="@color/white"
+                            android:textSize="14sp"
+                            app:cornerRadius="8dp"
+                            app:icon="@drawable/ic_music_note"
+                            app:iconTint="@color/white" />
+
+                    </LinearLayout>
+
+
+
+                    <!-- Test Alarm Button -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnTestAlarm"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:backgroundTint="@color/primary_brown"
+                        android:text="Test Alarm"
+                        android:textColor="@color/white"
+                        android:textSize="16sp"
+                        app:cornerRadius="8dp"
+                        app:icon="@drawable/ic_notification"
+                        app:iconTint="@color/white" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- App Information Section -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"

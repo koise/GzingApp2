@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="128dp"
+    android:height="128dp"
+    android:viewportWidth="128"
+    android:viewportHeight="128">
+    
+    <!-- Background circle with light beige -->
+    <path
+        android:fillColor="#F5F5DC"
+        android:pathData="M64,8 C99.3,8 128,36.7 128,72 C128,107.3 99.3,136 64,136 C28.7,136 0,107.3 0,72 C0,36.7 28.7,8 64,8 Z" />
+    
+    <!-- Outer ring with dark beige -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#E8E4C9"
+        android:strokeWidth="4"
+        android:pathData="M64,12 C97.1,12 124,38.9 124,72 C124,105.1 97.1,132 64,132 C30.9,132 4,105.1 4,72 C4,38.9 30.9,12 64,12 Z" />
+    
+    <!-- Moon shape (crescent) -->
+    <path
+        android:fillColor="#8B4513"
+        android:pathData="M32,35 C32,25 27,15 22,20 C17,25 17,35 22,40 C27,45 32,45 32,35 Z" />
+    
+    <!-- Sleeping person's head -->
+    <path
+        android:fillColor="#A0522D"
+        android:pathData="M64,45 C75,45 85,55 85,65 C85,75 75,85 64,85 C53,85 43,75 43,65 C43,55 53,45 64,45 Z" />
+    
+    <!-- Sleeping person's hair -->
+    <path
+        android:fillColor="#654321"
+        android:pathData="M64,40 C78,40 88,50 88,62 C88,65 85,68 82,68 C75,68 72,65 64,65 C56,65 53,68 46,68 C43,68 40,65 40,62 C40,50 50,40 64,40 Z" />
+    
+    <!-- Closed eyes (sleeping) -->
+    <path
+        android:fillColor="#654321"
+        android:strokeColor="#654321"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M54,62 L60,62" />
+    <path
+        android:fillColor="#654321"
+        android:strokeColor="#654321"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M68,62 L74,62" />
+    
+    <!-- Peaceful smile -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#654321"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M58,72 Q64,76 70,72" />
+    
+    <!-- Pillow -->
+    <path
+        android:fillColor="#FFF8DC"
+        android:pathData="M35,70 C35,65 40,60 45,60 L83,60 C88,60 93,65 93,70 L93,85 C93,90 88,95 83,95 L45,95 C40,95 35,90 35,85 Z" />
+    
+    <!-- Pillow shading -->
+    <path
+        android:fillColor="#E8E4C9"
+        android:pathData="M35,75 C35,70 40,65 45,65 L83,65 C88,65 93,70 93,75 L93,85 C93,90 88,95 83,95 L45,95 C40,95 35,90 35,85 Z" />
+    
+    <!-- Blanket -->
+    <path
+        android:fillColor="#8B4A2B"
+        android:pathData="M40,85 Q50,80 64,85 Q78,90 88,85 L88,105 C88,110 83,115 78,115 L50,115 C45,115 40,110 40,105 Z" />
+    
+    <!-- Sleep "Z" symbols floating -->
+    <path
+        android:fillColor="#757575"
+        android:pathData="M90,40 L95,40 L90,48 L95,48 M90,40 L95,48" 
+        android:strokeColor="#757575"
+        android:strokeWidth="1.5"/>
+    
+    <path
+        android:fillColor="#757575"
+        android:pathData="M100,30 L105,30 L100,36 L105,36 M100,30 L105,36" 
+        android:strokeColor="#757575"
+        android:strokeWidth="1"/>
+    
+    <path
+        android:fillColor="#757575"
+        android:pathData="M108,22 L112,22 L108,27 L112,27 M108,22 L112,27" 
+        android:strokeColor="#757575"
+        android:strokeWidth="0.8"/>
+    
+    <!-- Stars in the background for nighttime -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M25,25 L26,27 L28,27 L26.5,28.5 L27,31 L25,29.5 L23,31 L23.5,28.5 L22,27 L24,27 Z" />
+    
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M110,50 L111,52 L113,52 L111.5,53.5 L112,56 L110,54.5 L108,56 L108.5,53.5 L107,52 L109,52 Z" />
+    
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M20,85 L21,87 L23,87 L21.5,88.5 L22,91 L20,89.5 L18,91 L18.5,88.5 L17,87 L19,87 Z" />
+        
+</vector>

@@ -1,0 +1,39 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid && auth != null",
+        ".validate": "newData.hasChildren(['uid', 'firstName', 'lastName', 'email']) && newData.child('uid').val() === $uid"
+      }
+    },
+    
+    "emergency_contacts": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid && auth != null",
+        "$contactId": {
+          ".validate": "newData.hasChildren(['id', 'name', 'phoneNumber', 'relationship']) && newData.child('id').val() === $contactId"
+        }
+      }
+    },
+    
+    "user_sessions": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid && auth != null"
+      }
+    },
+    
+    "app_settings": {
+      ".read": "auth != null",
+      ".write": false
+    },
+    
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}
+
